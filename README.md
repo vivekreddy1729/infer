@@ -576,20 +576,29 @@ What this repo does about it:
 - **Runs as unprivileged `pwuser`.** It is a browser loading untrusted remote pages.
 - **Healthcheck asserts the browser launched**, not merely that the port is listening. A
   process serving 200s that cannot launch Chrome is not healthy for this workload.
-- **`auto_stop_machines = false`** on Fly. A session sits blocked on human MFA input with the
-  browser context in machine memory; suspending mid-flow would destroy it. A deliberate cost
-  decision, not an oversight.
-- **2GB RAM.** Chrome + Xvfb + Node sits at 700–900MB with one active context, and the OOM
-  killer takes the machine, not the tab.
+- **Never more than one instance, and never auto-suspended.** A session sits blocked on human
+  MFA input with the browser context in process memory. A second instance means a user's
+  WebSocket can land on the one that is not holding their browser; suspending mid-flow destroys
+  it outright. Both are correctness constraints, not cost decisions.
+- **Memory headroom.** Chrome + Node sits at 700–900MB with one active context, and an OOM kill
+  takes the whole process, not a tab. 2GB is the floor for a container; the Windows instance is
+  sized higher because Windows Server itself takes more.
 
-```bash
-fly launch --no-deploy --copy-config
-fly volumes create session_data --size 1 --region ewr
-fly secrets set SESSION_ENCRYPTION_KEY=$(openssl rand -hex 32)
-fly secrets set RESIDENTIAL_PROXY_URL='http://user:pass@gate.provider.com:7000'
-fly secrets set PROXY_USERNAME_TEMPLATE='user-session-{session}-sessionduration-10'
-fly deploy --remote-only
-```
+### Deploying it
+
+The current target is a **Windows EC2 instance** —
+**[`docs/windows-ec2-deployment.html`](docs/windows-ec2-deployment.html)**, also served at
+`/deploy` on a running instance. Read section 1 first: the app *cannot* run as a Windows
+Service, and every normal instinct for running a server on Windows leads to the one place it
+does not work.
+
+For the Linux-container route, [`docs/aws-deployment.html`](docs/aws-deployment.html) covers
+ECS Fargate + ALB + EFS and, more usefully, why Lambda, App Runner, EKS and Beanstalk are each
+ruled out. Served at `/deploy/fargate`.
+
+Both share two settings that are wrong by default and fail in ways that look like application
+bugs: the load balancer idle timeout must exceed `MFA_WAIT_TIMEOUT_MS`, and `HEADLESS` must
+stay `false` or GEICO starts returning 302.
 
 ---
 
@@ -606,7 +615,7 @@ Two destinations, always:
 
 | | |
 |---|---|
-| **stdout** | what the platform aggregates (`fly logs`, `docker logs`). Ephemeral: bounded retention, gone when the machine is replaced. |
+| **stdout** | what the platform aggregates (CloudWatch, `docker logs`). Ephemeral: bounded retention, gone when the machine is replaced. |
 | **`logs/app.log`** | durable NDJSON on the mounted volume, rotating at 20MB × 10 files. This is the copy you can hand to someone. |
 
 Process-level faults are captured too — `uncaughtException`, `unhandledRejection`

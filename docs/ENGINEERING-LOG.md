@@ -1285,6 +1285,11 @@ full browser launch (~824ms) per session. The cost is Patchright's
 persistent-context stealth recommendation, which we give up; still running real
 Chrome via `channel` mitigates it, and it is revisitable per carrier.
 
+> Wording left as written, because it records the reasoning at the time. The
+> portability half of it no longer applies on the current target — `data/profiles/`
+> on an EBS volume survives restarts, since nothing replaces the host. See the
+> correction under OPTIMISATION-LOG O-10 and F-55.
+
 **Two problems found while testing it.**
 
 *Prepare borrowed the wrong timeout.* It used `NAV_TIMEOUT_MS` (20s), sized for a
@@ -3676,9 +3681,18 @@ not fixed: doing it properly means ACL work (`icacls`) that belongs in the deplo
 procedure, not in `mkdir`.
 
 **Also now irrelevant on this target:** `Dockerfile`, `docker-compose.yml`,
-`docker-entrypoint.sh` and `.dockerignore` are Linux-container plumbing, and `fly.toml` is
-Fly.io, which contradicts the AWS-only constraint. Left in the tree rather than deleted
-unilaterally, and called out here so nobody follows them onto the wrong platform.
+`docker-entrypoint.sh` and `.dockerignore` are Linux-container plumbing, and `fly.toml` was
+Fly.io, which contradicts the AWS-only constraint. Called out here so nobody follows them onto
+the wrong platform.
+
+**Update — `fly.toml` deleted.** Removed on request, along with the references that would have
+dangled: the Fly deploy block in `README.md`, a `fly.toml` memory note in `.env.example`, and the
+`fly secrets set` remediation in the `SESSION_ENCRYPTION_KEY` hard-fail message — that last one
+was the harmful one, since it handed a wrong command to someone already stuck. The Docker files
+stay: they are a working Linux-container path, not a wrong one, and `docs/aws-deployment.html`
+still documents it. Historical entries that discuss `fly.toml` — F-24 in particular, where its
+volume layout silently discarded logs — are left exactly as written. They record what happened,
+and editing them to match the current platform would turn a log into fiction.
 
 **Lesson.** "It is just Node, it runs anywhere" was true of the application and false of
 everything around it. The portability risk was not in the code, it was in the *operational*

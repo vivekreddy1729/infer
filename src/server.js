@@ -33,8 +33,14 @@ installCrashHandlers();
 const app = Fastify({
   loggerInstance: logger,
   bodyLimit: 64 * 1024,
-  // Behind Fly/Render/Railway, so trust the edge's forwarding headers for
-  // correct client IPs in logs and rate limiting.
+  /**
+   * Deployed behind a load balancer (an AWS ALB on the current target), so trust the
+   * edge's forwarding headers to get real client IPs in logs and in rate limiting.
+   *
+   * Without this every request appears to come from the load balancer, which would make
+   * the `/api/sessions` rate limit global rather than per-client — one user's retries
+   * would lock out everyone.
+   */
   trustProxy: true,
   /**
    * Request logging is ON.

@@ -135,7 +135,9 @@ export class ProgressiveCarrier extends BaseCarrier {
    * 2. **`storageState` is the better carrier for it anyway.** Device trust rides
    *    on cookies, which `storageState` captures, encrypts, and — unlike a
    *    profile directory — keeps portable across redeploys. Profiles are
-   *    machine-local, so on Fly they are destroyed on every deploy.
+   *    machine-local, so any deploy that replaces the host destroys them.
+   *    (Weaker on a long-lived EC2 instance, where profiles on EBS do survive;
+   *    reasons 1 and 3 still stand there. See F-55.)
    * 3. **It blocked pre-warming.** `launchPersistentContext` needs a profile key,
    *    and ours is derived from the username, which is unknown until the user
    *    submits. A pooled context can be opened anonymously in advance; a

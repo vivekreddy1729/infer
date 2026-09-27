@@ -425,9 +425,17 @@ it, whatever it happens to be that minute.
 `launchPersistentContext` needs a username-derived key and is therefore fundamentally
 un-pre-warmable. Justified by three things rather than one: device trust never actually worked
 anyway (O-5), `storageState` carries the same cookies while being encrypted *and* portable across
-redeploys (profiles are machine-local and destroyed by every Fly deploy), and it removes a ~824ms
-browser launch per session. The cost — Patchright documents persistent contexts as its most
-undetectable mode — is real, accepted, and reversible per carrier.
+redeploys (profiles are machine-local and destroyed by any deploy that replaces the host), and it
+removes a ~824ms browser launch per session. The cost — Patchright documents persistent contexts
+as its most undetectable mode — is real, accepted, and reversible per carrier.
+
+> **Later correction (F-55).** The portability argument above is weaker on the current target than
+> it was when this was written. On a long-lived Windows EC2 instance, `data/profiles/` sits on EBS
+> and *does* survive restarts and redeploys — nothing replaces the host. So of the three
+> justifications, only two still carry weight there: device trust not working for Progressive
+> (O-5), and the ~824ms saved launch. Recorded rather than edited away, because it means the
+> decision is worth *revisiting* on that target rather than assumed settled. GEICO already opts
+> back into persistent profiles, and it is per-carrier precisely so this stays reversible.
 
 **Two sub-failures found while testing.**
 

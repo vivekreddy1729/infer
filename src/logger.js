@@ -7,7 +7,7 @@ import RotatingFileStream from './logging/rotatingFile.js';
  *
  * Two destinations, always:
  *
- *   stdout  — what the hosting platform aggregates (`fly logs`, `docker logs`).
+ *   stdout  — what the hosting platform aggregates (CloudWatch, `docker logs`).
  *             Ephemeral: bounded retention, and gone when the machine is replaced.
  *   file    — durable, rotating, on the mounted volume. This is the copy you can
  *             actually hand to someone after the fact.
