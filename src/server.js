@@ -333,7 +333,19 @@ for (const [route, filename] of Object.entries(DEPLOY_GUIDES)) {
     try {
       return reply.type('text/html; charset=utf-8').send(await readFile(file, 'utf8'));
     } catch {
-      return reply.code(404).send({ error: `Deployment guide ${filename} not found in this image.` });
+      /**
+       * A 404 here is expected, not broken.
+       *
+       * `docs/` is deliberately not in the public repository, so a plain `git clone`
+       * has no guide to serve. The route stays because the directory may be copied
+       * onto a host by an operator who wants it reachable while debugging — which is
+       * the whole reason for serving it over HTTP. Saying so beats a bare 404 that
+       * reads like a routing bug.
+       */
+      return reply.code(404).send({
+        error: `docs/${filename} is not present on this host.`,
+        why: 'docs/ is not published in the repository. Copy it onto the host to serve it here.',
+      });
     }
   });
 }

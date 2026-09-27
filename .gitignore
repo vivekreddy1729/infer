@@ -56,6 +56,20 @@ playwright-report/
 .patchright/
 
 # ---------------------------------------------------------------------------
+# Kept out of the public repo, deliberately — present locally
+# ---------------------------------------------------------------------------
+# docs/  engineering and optimisation logs, architecture, onboarding, debugging
+#        toolkit, and the deployment guides. Internal working material.
+# .kiro/ agent steering rules and hooks. Tooling configuration, not project code.
+#
+# Untracked rather than deleted: nothing in the app imports either, so removing
+# them from the repo is safe. `/deploy` serves from docs/ and will return 404 on a
+# clone that does not have it — handled explicitly in src/server.js rather than
+# left to fail obscurely.
+docs/
+.kiro/
+
+# ---------------------------------------------------------------------------
 # Editor and OS noise
 # ---------------------------------------------------------------------------
 .DS_Store

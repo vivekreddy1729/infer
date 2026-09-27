@@ -285,11 +285,17 @@ if (env.SESSION_ENCRYPTION_KEY) {
        * that cannot work is worse than no command — it sends them to install a CLI for a
        * platform they are not using.
        */
+      /**
+       * Self-contained on purpose. This used to point at a file in `docs/`, which is not
+       * published in the repository — so for anyone working from a clone it named
+       * something they do not have. A hard-fail message is read by someone already
+       * stuck; every line of it has to stand on its own.
+       */
       + 'Then make it available to the process:\n'
-      + '  - Windows EC2: store it in AWS Secrets Manager and write it into .env at boot\n'
-      + '    (see docs/windows-ec2-deployment.html, step 4), or set it in .env directly\n'
-      + '  - local production-mode run: put it in .env\n'
-      + '  - container: pass it as an environment variable'
+      + '  - put it in .env (simplest, works everywhere)\n'
+      + '  - or set it as an environment variable before starting\n'
+      + '  - on AWS: store it in Secrets Manager and write it into .env at boot, so it\n'
+      + '    is not baked into an image or an instance'
   );
 } else {
   sessionKey = crypto.randomBytes(32);

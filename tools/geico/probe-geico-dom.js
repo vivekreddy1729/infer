@@ -16,7 +16,7 @@
  *
  * WHY THIS TOOL EXISTS
  *
- * GEICO was previously ruled out (see docs/CARRIER-ONBOARDING.md, F-06) on this
+ * GEICO was previously ruled out (engineering log F-06) on this
  * evidence: the login page renders a visible email/password form, a screenshot
  * proves it, and yet `input[type="password"]` has a count of ZERO to both
  * `page.evaluate` and Playwright's locator engine, even after polling and after

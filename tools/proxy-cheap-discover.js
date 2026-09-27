@@ -40,7 +40,7 @@
  * Elastic IP. Then the address is genuinely fixed, and whitelisting is strictly better
  * than credentials — it removes the proxy password from the container environment
  * entirely, so a compromised task leaks nothing reusable. That is a post-deploy
- * hardening step, not a setup step, and it is written up in `docs/aws-deployment.html`.
+ * hardening step, not a setup step. See the deployment guide.
  *
  *   node tools/proxy-cheap-discover.js            # secrets masked
  *   node tools/proxy-cheap-discover.js --reveal   # full .env block
