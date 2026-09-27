@@ -3532,3 +3532,69 @@ changed the meaning of 45 lines, because the callback outlived the call. Nothing
 covered it: reaching `submitMfa` needs a human MFA round-trip, and the mock adapter returns a
 correct object so the guard branch was never taken. This is the third time in this project
 that a fix to instrumentation broke the thing being instrumented.
+
+---
+
+### F-54 · A test that vanishes on the machine you deploy to
+| | |
+|---|---|
+| **Area** | test suite / repository hygiene |
+| **Severity** | silent loss of coverage, exactly where coverage matters most |
+| **Status** | fixed with a committed synthetic fixture that is stronger than the real one |
+
+**Found while preparing the repository for a fresh deployment.** Cloning the committed tree
+into a clean directory and running the offline suites surfaced this:
+
+```
+SKIP  artifacts/recordings/geico/documents-list-fixture.json not present
+      — run `npm run record:geico` first
+```
+
+Followed by `ALL GEICO SCREEN DETECTION CHECKS PASSED` and exit 0.
+
+**The problem is the exit code, not the skip.** `tools/geico/test-geico-document-selection.js`
+guards the F-28 term-filter logic — the rule that stops a document from an *expired* policy
+term being served as the current declarations page. On a fresh clone its fixture is absent, so
+it called `process.exit(0)`. `smoke:all` chains with `&&`, so a green suite on the deployment
+target meant nothing about that logic. The machine where this is least verified is the one it
+runs on in production.
+
+**Why the fixture is not committed, and should not be.** It is a real
+`/ws/consolidated-documents` payload. Beyond ordinary PII, a GEICO `policyNumber` **is** the
+`view-document` access token — 44 characters that fetch the PDF. Committing it publishes
+working document-access credentials. `artifacts/` stays gitignored.
+
+**Fix: a committed synthetic fixture, and it is deliberately harder than the real one.**
+
+Structurally faithful, because the two buckets differ and `flattenDocuments()` treats them
+differently — `policyDocuments` is a flat array of documents, `otherPolicyDocuments` is an
+array of transaction groups each holding a `documents` array. A fixture that got that wrong
+would pass while testing the wrong code path.
+
+The substantive part is that it contains a **genuine** F-28 inversion:
+`dec-prev-inversion` sits in the expired term (`2026-03-17`) carrying
+`transactionDate: 2026-12-31`, later than anything in the in-force term. So naive
+"most recent transaction wins" selects a document from a dead term.
+
+**The real recording cannot make that assertion, and the test already admitted it.** Its own
+INFO line reports `real-data inversions: 0; naive recency would be CORRECT by coincidence on
+this account`. Against the real payload the term filter removes a *dependency on a
+coincidence*; it does not prevent a live failure. The synthetic fixture makes it demonstrably
+load-bearing on data nobody tampered with mid-test — a stronger claim than the test's existing
+planted-entry check, which mutates the payload to force the trap.
+
+Expectations moved into the fixture as an `__expected` block, so the real recording keeps its
+hardcoded constants — including the id of the document the user opened by hand — and the
+synthetic one declares its own. The test prefers the real recording when present and says which
+it used.
+
+**Verification.** Real recording: passes, unchanged. Synthetic only, run from an actual clone:
+passes with three additional assertions the real payload cannot support. `smoke:all`:
+**202 PASS, 0 FAIL**, no SKIP.
+
+**Lesson.** `process.exit(0)` on a missing fixture reads as politeness and behaves as a lie: it
+reports success for work not done, and it does so specifically on a fresh checkout — a new
+contributor, CI, or a deployment target. A test that cannot run should either fail or be loud
+enough that a green summary cannot absorb it. The broader trap is that gitignoring a directory
+for good reasons silently deletes whatever coverage depended on it, and nothing warns you,
+because locally the file is still sitting there.

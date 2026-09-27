@@ -22,7 +22,26 @@
 import { readFile } from 'node:fs/promises';
 import { selectDocument, flattenDocuments, TARGETS } from '../../src/carriers/geico/documents.js';
 
-const FIXTURE = 'artifacts/recordings/geico/documents-list-fixture.json';
+/**
+ * Two fixtures, preferring the real one.
+ *
+ * The real recording is the stronger evidence — it is an actual
+ * `/ws/consolidated-documents` payload, and the headline assertion is that selection
+ * picks the very document the user opened by hand. But it lives in `artifacts/`, which
+ * is gitignored because a GEICO `policyNumber` doubles as a `view-document` access
+ * token. So on a fresh clone it is absent, this test used to SKIP, and `process.exit(0)`
+ * meant `smoke:all` stayed green with this logic entirely unverified. A test that
+ * disappears on the machine you deploy to is not a test. See F-54.
+ *
+ * The synthetic fixture is committed and carries no account data. It is deliberately
+ * HARDER than the real one: it contains a genuine F-28 inversion, where a document in
+ * the expired term has a later `transactionDate` than anything in the in-force term. On
+ * the real recording no such inversion exists, so naive recency ranking is correct there
+ * by coincidence — this test says so in its own INFO line. Against the synthetic
+ * fixture the term filter is provably load-bearing.
+ */
+const REAL_FIXTURE = 'artifacts/recordings/geico/documents-list-fixture.json';
+const SYNTHETIC_FIXTURE = 'tools/geico/fixtures/documents-list-synthetic.json';
 
 /** The document the user actually opened, verified as a 52,361-byte PDF. */
 const USER_DOWNLOADED = '85cf35bd-4831-a624-49eb-080110bda7ef';
@@ -36,24 +55,46 @@ const eq = (actual, expected, m) =>
 async function main() {
   console.log('GEICO document selection\n');
   let payload;
+  let usingReal = false;
   try {
-    payload = JSON.parse(await readFile(FIXTURE, 'utf8'));
+    payload = JSON.parse(await readFile(REAL_FIXTURE, 'utf8'));
+    usingReal = true;
+    console.log(`  using REAL recording (${REAL_FIXTURE})\n`);
   } catch {
-    console.log(`  SKIP  ${FIXTURE} not present — run \`npm run record:geico\` first`);
-    process.exit(0);
+    payload = JSON.parse(await readFile(SYNTHETIC_FIXTURE, 'utf8'));
+    console.log(`  real recording absent; using committed SYNTHETIC fixture`);
+    console.log(`  (${SYNTHETIC_FIXTURE} — no account data, and it contains a genuine F-28 inversion)\n`);
   }
+
+  /**
+   * Expectations come from the fixture when it declares them.
+   *
+   * The real recording has no `__expected` block, so it keeps the hardcoded constants
+   * that encode what the user actually downloaded. The synthetic fixture declares its
+   * own, so the two can diverge without the test needing to know which is loaded.
+   */
+  const expected = payload.__expected ?? {
+    declarationsWinner: USER_DOWNLOADED,
+    declarationPageCount: 11,
+    contractWinner: null,
+    idCardWinner: null,
+  };
 
   // -- 1. the headline: same document the user got ---------------------------
   const dec = selectDocument(payload, 'declarations', { limit: 1 });
   eq(dec.chosen.length, 1, 'declarations target returns exactly one document');
-  eq(dec.chosen[0]?.id, USER_DOWNLOADED, 'picks the SAME document the user downloaded');
+  eq(
+    dec.chosen[0]?.id,
+    expected.declarationsWinner,
+    usingReal ? 'picks the SAME document the user downloaded' : 'picks the expected in-term declaration'
+  );
   eq(dec.chosen[0]?.description, 'Declaration Page', 'description is Declaration Page');
   eq(dec.diagnostics.chosenIsInCurrentTerm, true, 'chosen document is from the in-force term');
 
   // -- 2. THE NEGATIVE CONTROL: the naive rule must fail on this data --------
   const all = flattenDocuments(payload, TARGETS.declarations.buckets)
     .filter((d) => TARGETS.declarations.description.test(d.description));
-  eq(all.length, 11, 'fixture really does contain 11 "Declaration Page" documents');
+  eq(all.length, expected.declarationPageCount, 'fixture really does contain the expected "Declaration Page" count');
 
   const naive = [...all].sort((a, b) =>
     String(b.transactionDate).localeCompare(String(a.transactionDate))
@@ -79,11 +120,33 @@ async function main() {
       newer.effectiveDate > older.effectiveDate &&
       String(older.transactionDate) > String(newer.transactionDate)
     ));
-  const naiveIsCorrectHere = naive?.id === USER_DOWNLOADED;
+  const naiveIsCorrectHere = naive?.id === expected.declarationsWinner;
   console.log(
-    `  INFO  real-data inversions (older term, later txn): ${inversions.length}`
-    + `; naive recency would be ${naiveIsCorrectHere ? 'CORRECT by coincidence' : 'WRONG'} on this account`
+    `  INFO  fixture inversions (older term, later txn): ${inversions.length}`
+    + `; naive recency would be ${naiveIsCorrectHere ? 'CORRECT by coincidence' : 'WRONG'} here`
   );
+
+  /**
+   * When the fixture declares what naive ranking would wrongly pick, assert it.
+   *
+   * This is the assertion the real recording cannot make, because it has no inversion.
+   * Here the trap is in the data rather than planted by the test, so it proves the term
+   * filter on a payload nobody tampered with mid-test — which is a meaningfully stronger
+   * claim than the plant below.
+   */
+  if (expected.naiveWouldPick) {
+    eq(naive?.id, expected.naiveWouldPick, 'naive recency picks the expired-term document');
+    eq(
+      naive?.effectiveDate !== payload.currentTermEffectiveDate,
+      true,
+      'and that document really is outside the in-force term'
+    );
+    if (dec.chosen[0]?.id !== naive?.id) {
+      pass('the term filter rejects it on untampered data', `chose ${dec.chosen[0]?.id} over ${naive?.id}`);
+    } else {
+      fail('the term filter did NOT reject the expired-term document');
+    }
+  }
 
   /**
    * Now force the trap to bite. Remove the current term's documents and confirm
@@ -104,7 +167,7 @@ async function main() {
     }],
   });
   const withPlant = selectDocument(planted, 'declarations', { limit: 1 });
-  if (withPlant.chosen[0]?.id === USER_DOWNLOADED) {
+  if (withPlant.chosen[0]?.id === expected.declarationsWinner) {
     pass('a previous-term document with the newest transactionDate does NOT win', 'term filter holds');
   } else {
     fail('term filter failed — a stale-term document outranked the in-force one',

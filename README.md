@@ -85,7 +85,7 @@ diagnostics, catalogued in [`docs/DEBUGGING-TOOLKIT.md`](docs/DEBUGGING-TOOLKIT.
 
 | Document | What it is for |
 |---|---|
-| [`docs/ENGINEERING-LOG.md`](docs/ENGINEERING-LOG.md) | **Read this before changing an adapter.** Every failure encountered, its root cause, how it was diagnosed, and what changed. 53 entries. Several fixes look arbitrary until you know what they defend against. |
+| [`docs/ENGINEERING-LOG.md`](docs/ENGINEERING-LOG.md) | **Read this before changing an adapter.** Every failure encountered, its root cause, how it was diagnosed, and what changed. 54 entries. Several fixes look arbitrary until you know what they defend against. |
 | [`docs/OPTIMISATION-LOG.md`](docs/OPTIMISATION-LOG.md) | **Read this before optimising anything.** Why each performance approach was chosen, in what order, what it measured, and why two of them failed. Includes a [rejected-approaches table](docs/OPTIMISATION-LOG.md#rejected-approaches-and-why) so experiments are not re-run. 17 entries. |
 | [`docs/CARRIER-ONBOARDING.md`](docs/CARRIER-ONBOARDING.md) | The repeatable playbook for adding a carrier, sequenced so the cheapest checks eliminate the most candidates and no real login is spent on an unanswered question. |
 | [`docs/aws-deployment.html`](docs/aws-deployment.html) | **Deploying on AWS.** ECS Fargate + ALB + EFS, with the four app constraints that rule out Lambda and App Runner, a cost table, and the failure modes that look like app bugs. Also served at `/deploy` on a running instance. |

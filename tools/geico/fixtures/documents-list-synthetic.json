@@ -1,0 +1,108 @@
+{
+  "__fixture": "SYNTHETIC. Contains no real account data. Structurally faithful to a real GEICO /ws/consolidated-documents payload: `policyDocuments` is a FLAT array of documents, `otherPolicyDocuments` is an array of transaction GROUPS each holding a `documents` array. Both shapes are exercised because flattenDocuments() handles them differently.",
+  "__why": "The real recording lives in artifacts/ and is gitignored — it carries real policy numbers, which double as view-document access tokens. Without a committed fixture the GEICO selection test SKIPS on a fresh clone and still exits 0, so the suite looks green while this logic is untested. See ENGINEERING-LOG F-54.",
+  "__stronger_than_real": "This fixture contains a GENUINE F-28 inversion: dec-prev-inversion sits in the EXPIRED term (2026-03-17) but carries transactionDate 2026-12-31, later than any current-term document. Naive 'most recent transactionDate wins' therefore picks a document from an expired term. On the real recording no such inversion exists, so naive ranking happens to be correct there by coincidence — the test says so itself. This fixture makes the term filter demonstrably load-bearing rather than merely unexercised.",
+
+  "__expected": {
+    "declarationsWinner": "dec-cur-03",
+    "declarationPageCount": 11,
+    "contractWinner": "contract-cur-01",
+    "idCardWinner": "idc-cur-01",
+    "naiveWouldPick": "dec-prev-inversion",
+    "note": "declarationsWinner is the in-term Declaration Page with the greatest transactionDate. naiveWouldPick is what an unguarded recency sort selects, and it is in the EXPIRED term."
+  },
+
+  "currentTermEffectiveDate": "2026-09-17",
+  "currentTermExpirationDate": "2027-03-17",
+  "previousTermEffectiveDate": "2026-03-17",
+  "previousTermExpirationDate": "2026-09-17",
+  "policyNumber": "SYNTHETIC-POLICY-TOKEN-0000000000000000000000",
+
+  "policyDocuments": [
+    { "id": "contract-cur-01", "description": "Policy Contract", "effectiveDate": "2026-09-17", "transactionDate": "2026-08-14" },
+    { "id": "amendment-cur-01", "description": "Automobile Policy Amendment", "effectiveDate": "2026-09-17", "transactionDate": "2026-08-14" },
+    { "id": "contract-prev-01", "description": "Policy Contract", "effectiveDate": "2026-03-17", "transactionDate": "2026-02-10" }
+  ],
+
+  "otherPolicyDocuments": [
+    {
+      "transactionType": "NEW BUSINESS",
+      "transactionTypeCode": "New",
+      "transactionDate": "2026-08-14",
+      "documents": [
+        { "id": "dec-cur-01", "description": "Declaration Page", "effectiveDate": "2026-09-17", "transactionDate": "2026-08-14" },
+        { "id": "idc-cur-02", "description": "Insurance ID Card", "effectiveDate": "2026-09-17", "transactionDate": "2026-08-14" },
+        { "id": "privacy-cur-01", "description": "Privacy Notice", "effectiveDate": "2026-09-17", "transactionDate": "2026-08-14" }
+      ]
+    },
+    {
+      "transactionType": "POLICY CHANGE",
+      "transactionTypeCode": "Endorse",
+      "transactionDate": "2026-09-02",
+      "documents": [
+        { "id": "dec-cur-02", "description": "Declaration Page", "effectiveDate": "2026-09-17", "transactionDate": "2026-09-02" },
+        { "id": "notice-cur-01", "description": "Important Notice", "effectiveDate": "2026-09-17", "transactionDate": "2026-09-02" }
+      ]
+    },
+    {
+      "transactionType": "POLICY CHANGE",
+      "transactionTypeCode": "Endorse",
+      "transactionDate": "2026-09-10",
+      "documents": [
+        { "id": "dec-cur-03", "description": "Declaration Page", "effectiveDate": "2026-09-17", "transactionDate": "2026-09-10" },
+        { "id": "idc-cur-01", "description": "Insurance ID Card", "effectiveDate": "2026-09-17", "transactionDate": "2026-09-05" },
+        { "id": "signature-cur-01", "description": "Signature Page", "effectiveDate": "2026-09-17", "transactionDate": "2026-09-10" }
+      ]
+    },
+    {
+      "transactionType": "RENEWAL",
+      "transactionTypeCode": "Renew",
+      "transactionDate": "2026-02-10",
+      "documents": [
+        { "id": "dec-prev-01", "description": "Declaration Page", "effectiveDate": "2026-03-17", "transactionDate": "2026-02-10" },
+        { "id": "dec-prev-02", "description": "Declaration Page", "effectiveDate": "2026-03-17", "transactionDate": "2026-02-10" },
+        { "id": "cover-prev-01", "description": "Cover Letter", "effectiveDate": "2026-03-17", "transactionDate": "2026-02-10" }
+      ]
+    },
+    {
+      "transactionType": "POLICY CHANGE",
+      "transactionTypeCode": "Endorse",
+      "transactionDate": "2026-03-20",
+      "documents": [
+        { "id": "dec-prev-03", "description": "Declaration Page", "effectiveDate": "2026-03-17", "transactionDate": "2026-03-20" },
+        { "id": "dec-prev-04", "description": "Declaration Page", "effectiveDate": "2026-03-17", "transactionDate": "2026-03-20" },
+        { "id": "losspay-prev-01", "description": "Loss Payable Clause", "effectiveDate": "2026-03-17", "transactionDate": "2026-03-20" }
+      ]
+    },
+    {
+      "transactionType": "POLICY CHANGE",
+      "transactionTypeCode": "Endorse",
+      "transactionDate": "2026-05-04",
+      "documents": [
+        { "id": "dec-prev-05", "description": "Declaration Page", "effectiveDate": "2026-03-17", "transactionDate": "2026-05-04" },
+        { "id": "dec-prev-06", "description": "Declaration Page", "effectiveDate": "2026-03-17", "transactionDate": "2026-05-04" },
+        { "id": "mailsheet-prev-01", "description": "Mail Sheet/Special Cards", "effectiveDate": "2026-03-17", "transactionDate": "2026-05-04" }
+      ]
+    },
+    {
+      "transactionType": "POLICY CHANGE",
+      "transactionTypeCode": "Endorse",
+      "transactionDate": "2026-06-11",
+      "documents": [
+        { "id": "dec-prev-07", "description": "Declaration Page", "effectiveDate": "2026-03-17", "transactionDate": "2026-06-11" },
+        { "id": "infoopt-prev-01", "description": "Information & Option Form", "effectiveDate": "2026-03-17", "transactionDate": "2026-06-11" }
+      ]
+    },
+    {
+      "transactionType": "LATE-ARRIVING ENDORSEMENT ON AN EXPIRED TERM",
+      "transactionTypeCode": "Endorse",
+      "transactionDate": "2026-12-31",
+      "documents": [
+        { "id": "dec-prev-inversion", "description": "Declaration Page", "effectiveDate": "2026-03-17", "transactionDate": "2026-12-31" }
+      ]
+    }
+  ],
+
+  "billingDocuments": [],
+  "importantDocuments": []
+}
