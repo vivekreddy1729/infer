@@ -44,9 +44,33 @@ const exists = async (p) => { try { await access(p); return true; } catch { retu
 console.log('\nCarrier Policy Puller — preflight\n');
 
 // -- 1. Node ------------------------------------------------------------------
+/**
+ * Report Node that is NEWER than the pinned version, not just older.
+ *
+ * `engines` allows `>=20` and this used to pass anything at or above it silently. A
+ * production instance ended up on Node 24 because `winget` installs current LTS while
+ * `.nvmrc` pins 20 — legal, and untested. Nothing said so, which makes it the last thing
+ * anyone would suspect when behaviour differs from development (F-60..F-64 deployment
+ * notes, item 6).
+ *
+ * A note rather than a warning: running ahead of the pin is usually fine and blocking on
+ * it would be obstructive. The point is that it is *visible* before someone spends an hour
+ * on a mystery.
+ */
+const PINNED_MAJOR = 20;
 const major = Number(process.versions.node.split('.')[0]);
-if (major >= 20) ok('Node version', process.version);
-else bad(`Node ${process.version} is too old; >=20 required`, 'Install Node 20+ (see .nvmrc)');
+if (major < PINNED_MAJOR) {
+  bad(`Node ${process.version} is too old; >=${PINNED_MAJOR} required`, 'Install Node 20+ (see .nvmrc)');
+} else if (major > PINNED_MAJOR) {
+  ok(
+    'Node version',
+    `${process.version} — newer than the pinned ${PINNED_MAJOR} in .nvmrc. Allowed by `
+      + `engines, but ${PINNED_MAJOR} is what this project was verified against; suspect it `
+      + 'first if behaviour differs from development.'
+  );
+} else {
+  ok('Node version', `${process.version} — matches .nvmrc`);
+}
 
 // -- 2. Dependencies ----------------------------------------------------------
 if (await exists('node_modules')) {
