@@ -132,7 +132,8 @@ if (await exists('.env')) {
   }
   if (/^HEADLESS=true/m.test(body)) {
     warn('it has HEADLESS=true, which makes GEICO login stall with no error (F-40)');
-    note('Change it to HEADLESS=false. Docker runs headed under Xvfb, so no window appears there.');
+    note('Change it to HEADLESS=false. A window only appears when you run it locally;');
+    note('on a server Chrome draws into a desktop session or a virtual display.');
   }
 } else if (await exists('.env.example')) {
   await copyFile('.env.example', '.env');

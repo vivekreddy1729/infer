@@ -38,10 +38,13 @@ import config from '../config.js';
  * Args we pass, and the ones we pointedly do not.
  *
  * Included:
- *   --disable-dev-shm-usage  Containers get a 64MB /dev/shm by default and
- *                            Chrome will crash on heavy pages without this.
- *                            Behavioural, not fingerprintable.
- *   --no-sandbox             Required under most container runtimes. Acceptable
+ *   --disable-dev-shm-usage  Kept for portability. Containers get a 64MB
+ *                            /dev/shm by default and Chrome crashes on heavy
+ *                            pages without this; inert elsewhere, so it costs
+ *                            nothing to leave on. Behavioural, not
+ *                            fingerprintable.
+ *   --no-sandbox             Required under most container runtimes, and as root.
+ *                            Acceptable
  *                            here because the browser only ever visits carrier
  *                            domains we selected, but it is a real tradeoff and
  *                            called out in the README.
@@ -54,7 +57,7 @@ import config from '../config.js';
  *                            leave stock.
  *   --disable-gpu            Forces a SwiftShader WebGL renderer, which is a
  *                            well-known headless tell. We keep the GPU stack
- *                            on and, where possible, run headed under Xvfb.
+ *                            on and run headed, using a real or virtual display.
  *   --window-size            Viewport is left to the real browser; see below.
  */
 const BASE_ARGS = Object.freeze(['--no-sandbox', '--disable-dev-shm-usage']);

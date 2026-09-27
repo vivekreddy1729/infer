@@ -13,7 +13,7 @@ import RotatingFileStream from './logging/rotatingFile.js';
  *             actually hand to someone after the fact.
  *
  * The file sink is deliberately *not* shell redirection. Piping to `tee` works
- * until someone starts the process a different way — a `CMD` in a Dockerfile, a
+ * until someone starts the process a different way — a scheduled task, a
  * process manager, a one-off `node src/server.js` while debugging — and then the
  * logs for the run you care about simply do not exist. Owning it in-process means
  * it cannot be forgotten.

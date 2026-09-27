@@ -110,7 +110,7 @@ if (!(await exists(envPath))) {
 
   // HEADLESS — the one that breaks a carrier with no error message.
   if (env.HEADLESS === 'false') {
-    ok('HEADLESS=false', 'required for GEICO (F-40); Docker runs this under Xvfb');
+    ok('HEADLESS=false', 'required for GEICO (F-40); on a server Chrome needs a desktop or Xvfb');
   } else {
     bad(
       `HEADLESS=${env.HEADLESS ?? '(unset, defaults true)'} — GEICO's login will stall`,
@@ -254,7 +254,7 @@ try {
 // -- 8. Memory ----------------------------------------------------------------
 const totalGb = os.totalmem() / 1024 ** 3;
 if (totalGb >= 2) ok('memory', `${totalGb.toFixed(1)}GB total`);
-else warn(`${totalGb.toFixed(1)}GB RAM`, 'Headed Chrome under Xvfb adds ~80-150MB RSS over headless; 512MB containers OOM.');
+else warn(`${totalGb.toFixed(1)}GB RAM`, 'Headed Chrome adds ~80-150MB RSS over headless; small hosts OOM and lose every live session.');
 
 // -- summary ------------------------------------------------------------------
 console.log('');
