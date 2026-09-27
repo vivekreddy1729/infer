@@ -330,8 +330,23 @@ const DEPLOY_GUIDES = {
 for (const [route, filename] of Object.entries(DEPLOY_GUIDES)) {
   app.get(route, async (request, reply) => {
     const file = path.join(process.cwd(), 'docs', filename);
+
+    /**
+     * Read first, THEN choose a content type.
+     *
+     * Setting `reply.type('text/html')` before the read looks harmless because it reads
+     * left to right, but `reply.type(...)` is evaluated as the receiver of `.send()` — so
+     * the header is already committed to HTML when `readFile` throws, and Fastify then
+     * refuses to serialise the JSON error body: `FST_ERR_REP_INVALID_PAYLOAD_TYPE`,
+     * surfacing as a **500** instead of the 404 the code plainly intends.
+     *
+     * Latent since this route was written, because `docs/` was always on disk and the
+     * catch never ran. Removing `docs/` from the repository was the first thing to
+     * execute it. See F-56.
+     */
+    let html;
     try {
-      return reply.type('text/html; charset=utf-8').send(await readFile(file, 'utf8'));
+      html = await readFile(file, 'utf8');
     } catch {
       /**
        * A 404 here is expected, not broken.
@@ -347,6 +362,8 @@ for (const [route, filename] of Object.entries(DEPLOY_GUIDES)) {
         why: 'docs/ is not published in the repository. Copy it onto the host to serve it here.',
       });
     }
+
+    return reply.type('text/html; charset=utf-8').send(html);
   });
 }
 
