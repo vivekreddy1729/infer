@@ -304,20 +304,33 @@ app.get(
 );
 
 /**
- * Serve the AWS deployment guide.
+ * Serve the deployment guides.
  *
  * Reachable on a deployed instance on purpose: the document explains how the thing you
- * are looking at was deployed, and the moment you need it is usually while SSH'd into
+ * are looking at was deployed, and the moment you need it is usually while logged into
  * something that is misbehaving — not while you have the repo open.
+ *
+ * `/deploy` is the **current** target, Windows EC2. The ECS Fargate guide stays reachable
+ * at `/deploy/fargate` rather than being deleted, because its service-elimination
+ * reasoning (F-49) still holds and the Windows document cites it. Serving the current one
+ * at the short path matters: someone reaching for this while debugging should not have to
+ * work out which of two guides describes the box they are on.
  */
-app.get('/deploy', async (request, reply) => {
-  const file = path.join(process.cwd(), 'docs', 'aws-deployment.html');
-  try {
-    return reply.type('text/html; charset=utf-8').send(await readFile(file, 'utf8'));
-  } catch {
-    return reply.code(404).send({ error: 'Deployment guide not found in this image.' });
-  }
-});
+const DEPLOY_GUIDES = {
+  '/deploy': 'windows-ec2-deployment.html',
+  '/deploy/fargate': 'aws-deployment.html',
+};
+
+for (const [route, filename] of Object.entries(DEPLOY_GUIDES)) {
+  app.get(route, async (request, reply) => {
+    const file = path.join(process.cwd(), 'docs', filename);
+    try {
+      return reply.type('text/html; charset=utf-8').send(await readFile(file, 'utf8'));
+    } catch {
+      return reply.code(404).send({ error: `Deployment guide ${filename} not found in this image.` });
+    }
+  });
+}
 
 app.get('/api/health', async () => {
   const egress = await checkEgressIp();
