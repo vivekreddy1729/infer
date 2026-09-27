@@ -92,13 +92,38 @@ async function probeSession(browser, sessionId, n, holdMs) {
 async function main() {
   console.log('\n\u001b[1mProxy verification\u001b[0m\n');
 
+  /**
+   * No proxy configured. Say what that means, and do not hand out the old guess.
+   *
+   * This block used to print `PROXY_USERNAME_TEMPLATE={user}-session-{session}` and claim
+   * Proxy-Cheap's published API "covers ordering, not connecting". Both were wrong, and
+   * this is the first command a new user runs, so it was the worst place for them to
+   * survive (F-52, F-57):
+   *
+   *   - That template is correct for a *rotating gateway* and actively breaks a dedicated
+   *     IP plan, which is what Proxy-Cheap's RESIDENTIAL_STATIC product is. It rewrites a
+   *     username the provider expects verbatim, and the auth failure that follows looks
+   *     exactly like the IP being blocked — i.e. like the problem the proxy exists to fix.
+   *   - The API does expose connection details. `GET /proxies` returns the connect IP, all
+   *     three ports, and the proxy's own username and password. `proxy:discover` reads it.
+   */
   if (!config.RESIDENTIAL_PROXY_URL) {
     console.log('  No RESIDENTIAL_PROXY_URL set — nothing to verify.\n');
-    console.log('  Set it in .env, e.g. for Proxy-Cheap residential:');
-    console.log('      RESIDENTIAL_PROXY_URL=http://USER:PASS@gate.proxy-cheap.com:PORT');
-    console.log('      PROXY_USERNAME_TEMPLATE={user}-session-{session}\n');
-    console.log('  Host, port, and the exact sticky syntax come from your Proxy-Cheap');
-    console.log('  dashboard. Their published API docs cover ordering, not connecting.\n');
+    console.log('  That is fine for the demo portal, which needs no proxy at all.');
+    console.log('  It is also usually fine from a home connection — a real GEICO login has');
+    console.log('  been verified working with no proxy. Expect real carriers to block you');
+    console.log('  once this runs on a server, because datacenter IP ranges are pre-flagged.\n');
+    console.log('  To configure one, if you have a Proxy-Cheap account:');
+    console.log('      PROXYCHEAP_API_KEY=...        # from the dashboard');
+    console.log('      PROXYCHEAP_API_SECRET=...');
+    console.log('      npm run proxy:discover        # prints the exact .env lines\n');
+    console.log('  `proxy:discover` reads the account and derives the URL, the port matched to');
+    console.log('  the proxy type, and whether a sticky username template is needed at all —');
+    console.log('  which is the setting most likely to be wrong. Do not guess at it: on a');
+    console.log('  dedicated-IP plan a template BREAKS authentication, and the failure looks');
+    console.log('  like a blocked IP rather than a config error.\n');
+    console.log('  For any other provider, take the host, port and credentials from their');
+    console.log('  dashboard, set PROXY_MODEL to dedicated or rotating, and re-run this.\n');
     process.exit(0);
   }
 
