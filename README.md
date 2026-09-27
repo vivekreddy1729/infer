@@ -37,23 +37,67 @@ Two properties are worth knowing up front, because they drive most of the design
 | Requirement | Notes |
 |---|---|
 | **Node.js 20+** | `.nvmrc` pins 20. |
+| **Git** | To clone. |
 | **A browser** | Installed by `npm run setup`. Real Chrome is preferred over bundled Chromium — see below. |
 | **A residential proxy** | Only for real carriers. Carrier portals block datacenter IPs, so this is required once hosted, and unnecessary for the demo portal. |
 
 Nothing else. No database, no Redis, no external services.
 
+## Install the prerequisites
+
+Skip this if `node --version` already prints 20 or higher.
+
+**macOS**
+```bash
+brew install node git
+```
+
+**Ubuntu / Debian**
+```bash
+sudo apt update && sudo apt install -y git curl
+curl -fsSL https://deb.nodesource.com/setup_20.x | sudo -E bash -
+sudo apt install -y nodejs
+```
+
+**Amazon Linux 2023**
+```bash
+sudo dnf install -y git
+curl -fsSL https://rpm.nodesource.com/setup_20.x | sudo bash -
+sudo dnf install -y nodejs
+```
+
+**Windows / Windows Server** — a stock Windows Server AMI has neither, and there is no `winget`
+on Server by default, so install Chocolatey first:
+```powershell
+# PowerShell as Administrator
+Set-ExecutionPolicy Bypass -Scope Process -Force
+[System.Net.WebClient]::new().DownloadString('https://community.chocolatey.org/install.ps1') | iex
+choco install -y nodejs-lts git googlechrome
+```
+Open a new shell afterwards so `PATH` picks them up.
+
+Confirm before continuing:
+```bash
+node --version    # must be 20+
+git --version
+```
+
 ## Running it
 
 ```bash
+git clone https://github.com/vivekreddy1729/infer.git
+cd infer
+
 npm install
 npm run setup     # installs Chromium (~500MB, the slow part), creates .env and data/ logs/
 npm start
 ```
 
-Then open <http://localhost:3000> and use the **demo portal** carrier.
+Then open <http://localhost:3000> and use the **demo portal** carrier. It needs no credentials
+and no proxy, and it exercises the whole pipeline.
 
 `npm run setup` is non-interactive and safe to re-run. It will not overwrite an existing
-`.env`.
+`.env`, and it finishes by running `npm run doctor`, so anything missing is reported there.
 
 ### Check the environment
 
@@ -72,6 +116,24 @@ npm run smoke:all
 
 202 checks, end to end over the real transport against the demo portal. No credentials and no
 network egress needed.
+
+### Running it on a server
+
+The three commands above prove the app runs on a box. They do not make it stay up or be
+reachable. On a cloud instance you also need to:
+
+- **Open the port** — both the cloud security group *and* the host firewall. Otherwise it is
+  reachable only from the instance itself.
+- **Put TLS in front of it.** Users type carrier credentials into this app; do not serve it over
+  plain HTTP across the internet.
+- **Supervise the process**, or it dies when your session ends and does not return after a
+  reboot. On **Windows** this cannot be a Windows Service: the app runs a *headed* browser,
+  headed Chrome needs an interactive desktop, and Windows Services get Session 0, which has
+  none. Use auto-logon plus a scheduled task set to "run only when user is logged on".
+- **Configure a residential proxy.** A datacenter IP is the one thing carriers reject before
+  anything else.
+- **Run exactly one instance.** A pull holds an open browser session in memory, so a second
+  instance can receive a WebSocket for a browser it is not holding.
 
 ## Using it against a real carrier
 
