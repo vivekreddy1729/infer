@@ -36,7 +36,7 @@
     "test:newtab": "node tools/geico/test-newtab-capture.js",
     "test:geico-docs": "node tools/geico/test-geico-document-selection.js",
     "test:geico-screens": "node tools/geico/test-geico-screens.js",
-    "restart": "bash tools/restart-server.sh",
+    "restart": "node tools/restart-server.js",
     "test:typing": "node tools/geico/test-typing-fidelity.js --offline",
     "test:mfa-format": "node tools/test-mfa-code-format.js",
     "test:audit-markers": "node tools/test-audit-markers.js",

@@ -3598,3 +3598,91 @@ contributor, CI, or a deployment target. A test that cannot run should either fa
 enough that a green summary cannot absorb it. The broader trap is that gitignoring a directory
 for good reasons silently deletes whatever coverage depended on it, and nothing warns you,
 because locally the file is still sitting there.
+
+---
+
+### F-55 · Windows EC2 invalidates the deployment design, and one break is load-bearing
+| | |
+|---|---|
+| **Area** | deployment / portability |
+| **Severity** | one hard blocker, one broken command, one silent security regression |
+| **Status** | `restart` ported; the blocker is documented and needs verifying on the instance |
+
+**Context.** The target changed from ECS Fargate to a **Windows EC2 instance**.
+`docs/aws-deployment.html` is Fargate throughout — 13 references — and the whole
+headed-browser story in it rests on Xvfb, which is Linux-only. This entry records what
+actually breaks, checked rather than assumed.
+
+**The good news first: the application is portable.** Audited `src/` for shell-outs,
+hardcoded POSIX paths and path concatenation. There are none — no `exec`/`spawn`, no
+`/tmp` or `/usr`, and `path.join`/`path.resolve` throughout. `npm start` is plain
+`node src/server.js`. Nothing in the app needs changing.
+
+**Blocker: `HEADLESS=false` cannot be satisfied by a Windows Service.** This is the one that
+matters, and the two constraints are already established in this log.
+
+- F-40: GEICO returns **302 headless, 200 headed**. Headed is not a preference here, it is
+  the reason GEICO works at all.
+- On Linux this is solved with Xvfb, a virtual framebuffer. **Windows has no equivalent.**
+
+A Windows Service — or anything launched by Task Scheduler as "run whether user is logged on
+or not" — runs in **Session 0**, which has no interactive desktop. Headed Chrome cannot create
+a window there. So the obvious production shape, "install it as a service so it survives
+reboot", is the one shape that cannot work.
+
+What that leaves: the process must run inside an interactive desktop session. Auto-logon plus
+Task Scheduler "run only when user is logged on" is the usual arrangement, and an RDP
+disconnect needs care because disconnecting can leave the session without a usable desktop —
+`tscon` redirecting the session to the physical console is the standard workaround.
+
+**Stated honestly: none of that is verified on the instance yet.** The two premises (Session 0
+has no desktop; headed Chrome needs one) are well-established Windows behaviour, and F-40 is
+measured. The conclusion follows, but the specific arrangement that keeps a desktop alive
+across RDP disconnects has not been tested here and should be proven before it is relied on.
+
+**Broken: `npm run restart` was `bash tools/restart-server.sh`.** It needed `lsof`, `pkill`,
+`pgrep`, `ps -o lstart=`, `find -newermt`, `curl` and `python3`. None are on a stock Windows
+Server image — and this is the command recommended throughout the docs, on the grounds that a
+restart which silently does not take caused F-38.
+
+Rewritten as `tools/restart-server.js`. Four of the seven dependencies disappeared rather than
+gaining a Windows branch: the health check and the carrier check are `fetch`, and the
+stale-source scan is `fs.statSync`. Only two things genuinely need per-platform code, because
+only the OS knows the answer:
+
+| Need | POSIX | Windows |
+|---|---|---|
+| PID holding the port | `lsof -ti:PORT -sTCP:LISTEN` | `netstat -ano`, parse the LISTENING row |
+| That process's start time | `ps -o lstart=` | PowerShell `(Get-Process -Id N).StartTime` |
+
+PowerShell rather than `wmic`, which is deprecated and absent from newer images. Port matching
+is anchored so `:3000` does not also match `:30000`. If the start time cannot be read the
+staleness check reports `SKIP` instead of passing — a missing check named as missing beats a
+wrong one reported as green.
+
+Verified on macOS: identical output to the shell version, and the F-38 staleness guard still
+fires on a touched file and clears after a real restart. The `.sh` was deleted rather than kept
+alongside, because two implementations of a verification step will drift and the stale one will
+be the one someone runs.
+
+**Silent security regression: `mode: 0o700` is a no-op on Windows.** Six places create
+directories with `mode: 0o700` — `data/sessions` (encrypted carrier sessions),
+`data/profiles` (Chrome profiles holding live carrier cookies and GEICO device trust),
+`logs`, and the diagnostics and metrics stores. Node's `mode` is effectively ignored on
+Windows, so none of it restricts access; the directories inherit whatever the parent's ACL
+grants. On a single-administrator EC2 box the practical exposure is small, but the protection
+that exists on Linux is simply absent rather than degraded, and nothing reports that. Flagged,
+not fixed: doing it properly means ACL work (`icacls`) that belongs in the deployment
+procedure, not in `mkdir`.
+
+**Also now irrelevant on this target:** `Dockerfile`, `docker-compose.yml`,
+`docker-entrypoint.sh` and `.dockerignore` are Linux-container plumbing, and `fly.toml` is
+Fly.io, which contradicts the AWS-only constraint. Left in the tree rather than deleted
+unilaterally, and called out here so nobody follows them onto the wrong platform.
+
+**Lesson.** "It is just Node, it runs anywhere" was true of the application and false of
+everything around it. The portability risk was not in the code, it was in the *operational*
+layer — the restart command, the process supervision model, and a filesystem permission that
+fails by doing nothing at all. The most expensive of the three is the one with no code in it:
+a headed browser needs a desktop, and the standard way to run a server on Windows deliberately
+does not have one.
