@@ -276,9 +276,20 @@ if (env.SESSION_ENCRYPTION_KEY) {
       + 'after every restart, so every pull silently costs a human MFA round-trip.\n\n'
       + 'Generate one:\n'
       + '  node -e "console.log(require(\'crypto\').randomBytes(32).toString(\'hex\'))"\n\n'
-      + 'Then:\n'
-      + '  fly secrets set SESSION_ENCRYPTION_KEY=<64-hex-chars>\n'
-      + '  # or put it in .env for a local production-mode run'
+      /**
+       * Platform-neutral remediation, deliberately.
+       *
+       * This used to say `fly secrets set …`. That was wrong twice over: the project is
+       * AWS-only, and the current target is a Windows EC2 instance where `fly` does not
+       * exist. A hard-fail message is read by someone who is already stuck, so a command
+       * that cannot work is worse than no command — it sends them to install a CLI for a
+       * platform they are not using.
+       */
+      + 'Then make it available to the process:\n'
+      + '  - Windows EC2: store it in AWS Secrets Manager and write it into .env at boot\n'
+      + '    (see docs/windows-ec2-deployment.html, step 4), or set it in .env directly\n'
+      + '  - local production-mode run: put it in .env\n'
+      + '  - container: pass it as an environment variable'
   );
 } else {
   sessionKey = crypto.randomBytes(32);
