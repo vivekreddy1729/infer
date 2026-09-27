@@ -1,0 +1,407 @@
+/* Deliberately plain. The brief says keep it ugly, we care about it working. */
+
+:root {
+  --ink: #1a1f26;
+  --muted: #667085;
+  --line: #d6dae0;
+  --bg: #f4f6f8;
+  --accent: #1d6fd0;
+  --ok: #0a7d4b;
+  --err: #b42318;
+  --warn: #8a5a00;
+}
+
+* { box-sizing: border-box; }
+
+/**
+ * Make the `hidden` attribute authoritative.
+ *
+ * `hidden` is implemented by the UA stylesheet as `[hidden] { display: none }`,
+ * an attribute selector with specificity (0,1,0). Any author rule that sets
+ * `display` with equal-or-greater specificity silently defeats it, because
+ * author styles beat UA styles at the same specificity.
+ *
+ * `.overlay { display: flex }` did exactly that: it is also (0,1,0), so the MFA
+ * dialog rendered on every page load despite carrying `hidden`. Because the
+ * overlay is `position: fixed; inset: 0; z-index: 50`, it also intercepted every
+ * click meant for the form underneath, making the whole app appear broken in a
+ * way that looked like a backend or session fault rather than a stylesheet one.
+ *
+ * `!important` is warranted here: `hidden` is a semantic assertion that an
+ * element is not relevant, and no layout rule should be able to contradict it.
+ * This also protects every future component that uses `hidden` plus a `display`
+ * value, rather than fixing only the one that bit us.
+ */
+[hidden] { display: none !important; }
+
+body {
+  margin: 0;
+  padding: 24px 16px 64px;
+  font: 15px/1.5 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  color: var(--ink);
+  background: var(--bg);
+}
+
+header { max-width: 1100px; margin: 0 auto 20px; }
+h1 { font-size: 22px; margin: 0; }
+.tagline { color: var(--muted); margin: 4px 0 0; font-size: 14px; }
+
+main {
+  max-width: 1100px;
+  margin: 0 auto;
+  display: grid;
+  grid-template-columns: 340px 1fr;
+  gap: 16px;
+  align-items: start;
+}
+#documents-panel { grid-column: 1 / -1; }
+
+@media (max-width: 800px) {
+  main { grid-template-columns: 1fr; }
+}
+
+.panel {
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 16px;
+}
+h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0 0 14px; }
+
+label { display: block; font-size: 12px; font-weight: 600; margin: 12px 0 4px; }
+input, select {
+  width: 100%;
+  padding: 8px 9px;
+  font-size: 14px;
+  font-family: inherit;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: #fff;
+  color: var(--ink);
+}
+input:focus, select:focus { outline: 2px solid var(--accent); outline-offset: 0; border-color: var(--accent); }
+
+.hint { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+.hint.security { border-left: 2px solid var(--line); padding-left: 8px; margin-top: 12px; }
+
+.actions { margin-top: 16px; display: flex; gap: 8px; }
+button {
+  padding: 9px 14px;
+  font: inherit;
+  font-weight: 600;
+  border: 0;
+  border-radius: 4px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+button:disabled { background: #a8b2bd; cursor: not-allowed; }
+button.secondary { background: #fff; color: var(--ink); border: 1px solid var(--line); }
+
+/* -- progress -- */
+
+.badge {
+  display: inline-block;
+  padding: 3px 9px;
+  border-radius: 3px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .06em;
+  margin-bottom: 12px;
+  background: #eceff3;
+  color: var(--muted);
+}
+.badge.active { background: #e4efff; color: var(--accent); }
+.badge.ok { background: #e3f6ec; color: var(--ok); }
+.badge.err { background: #fdeceb; color: var(--err); }
+.badge.waiting { background: #fff5e0; color: var(--warn); }
+
+#status-log { list-style: none; margin: 0; padding: 0; font-size: 13px; }
+#status-log li { padding: 5px 0 5px 20px; border-bottom: 1px solid #f0f2f4; position: relative; }
+#status-log li:before { content: "›"; position: absolute; left: 6px; color: var(--muted); }
+#status-log li.note { color: var(--muted); }
+#status-log li.err { color: var(--err); }
+#status-log li.ok { color: var(--ok); font-weight: 600; }
+/* Two clocks per status line: step duration (prominent) and cumulative (quiet).
+   Showing only cumulative made every line look like a step duration. */
+#status-log .t { float: right; font-variant-numeric: tabular-nums; font-size: 11px; }
+#status-log .t strong { color: var(--ink); font-weight: 700; }
+#status-log .t.slow strong { color: var(--warn); }
+#status-log .t .cum { color: #b6bec8; margin-left: 7px; }
+
+.timings {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line);
+  font-size: 12px;
+}
+.timings h3 { font-size: 11px; text-transform: uppercase; color: var(--muted); margin: 0 0 8px; letter-spacing: .05em; }
+.timings .headline { font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.timings .headline.ok { color: var(--ok); }
+.timings .headline.over { color: var(--warn); }
+.timings table { width: 100%; border-collapse: collapse; margin-top: 8px; }
+.timings td { padding: 2px 0; color: var(--muted); }
+.timings td.v { text-align: right; font-variant-numeric: tabular-nums; color: var(--ink); }
+.timings td.human { font-style: italic; }
+.timings .meta { margin-top: 8px; color: var(--muted); }
+
+/* -- documents -- */
+
+.doc-tabs { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 10px; }
+.doc-tabs button { background: #fff; color: var(--ink); border: 1px solid var(--line); font-weight: 500; }
+.doc-tabs button.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+#doc-viewer { width: 100%; height: 640px; border: 1px solid var(--line); border-radius: 4px; background: #fafbfc; }
+
+/* -- MFA modal -- */
+
+.overlay {
+  position: fixed; inset: 0;
+  background: rgba(16, 22, 30, .55);
+  display: flex; align-items: center; justify-content: center;
+  padding: 16px; z-index: 50;
+}
+.modal {
+  background: #fff; border-radius: 6px; padding: 22px;
+  width: 100%; max-width: 380px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.2);
+}
+.modal h2 { font-size: 17px; text-transform: none; letter-spacing: 0; color: var(--ink); margin-bottom: 6px; }
+#mfa-code { font-size: 22px; letter-spacing: .28em; text-align: center; font-variant-numeric: tabular-nums; }
+.error { color: var(--err); font-size: 13px; margin: 8px 0 0; }
+.demo-code {
+  background: #fff8e1; border-left: 3px solid #f0b429;
+  padding: 8px 10px; font-size: 13px; margin: 10px 0 0; color: #6b4f00;
+}
+.demo-code strong { font-size: 18px; letter-spacing: .18em; font-variant-numeric: tabular-nums; }
+
+/* ===========================================================================
+   Metrics page
+   =========================================================================== */
+
+.metrics-main { display: block; max-width: 1100px; margin: 0 auto; }
+.metrics-main .panel { margin-bottom: 16px; }
+.metrics-main h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); margin: 0 0 6px; }
+code { background: #eef1f4; padding: 1px 4px; border-radius: 3px; font-size: 12px; }
+
+.filter-row { display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end; }
+.filter-row > div { flex: 1 1 170px; }
+.filter-row label { margin-top: 0; }
+.filter-actions { flex: 0 0 auto; }
+
+/* -- summary cards -- */
+
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(118px, 1fr)); gap: 10px; }
+.stat { border: 1px solid var(--line); border-radius: 5px; padding: 10px 12px; background: #fcfdfe; }
+.stat-v { font-size: 17px; font-weight: 700; font-variant-numeric: tabular-nums; color: var(--ink); }
+.stat-v.big { font-size: 24px; color: var(--accent); }
+.stat-k { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.stat.ok .stat-v { color: var(--ok); }
+.stat.warn .stat-v { color: var(--warn); }
+
+.breakdown { display: flex; gap: 26px; flex-wrap: wrap; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--line); }
+.chip { display: inline-block; background: #eef2f7; border-radius: 3px; padding: 2px 7px; font-size: 12px; margin: 0 5px 5px 0; color: var(--ink); }
+.chip.err { background: #fdeceb; color: var(--err); }
+
+/* -- phase chart --
+   Range bars on a shared scale. Built from divs rather than a chart library:
+   four numbers on one axis does not justify a dependency in a container image. */
+
+.phase-chart { margin-top: 6px; }
+.phase-row {
+  display: grid;
+  grid-template-columns: 210px 1fr 210px;
+  gap: 12px;
+  align-items: center;
+  padding: 7px 0;
+  border-bottom: 1px solid #f1f3f5;
+}
+.phase-row.human { opacity: .72; }
+.phase-name { font-size: 13px; color: var(--ink); }
+.phase-name .tag {
+  font-size: 9px; text-transform: uppercase; letter-spacing: .06em;
+  background: #fff5e0; color: var(--warn); padding: 1px 4px; border-radius: 2px; margin-left: 5px;
+}
+.phase-n { font-size: 11px; color: #9aa4b0; margin-left: 5px; font-variant-numeric: tabular-nums; }
+
+.phase-track { position: relative; height: 18px; background: #f4f6f8; border-radius: 3px; overflow: hidden; }
+.phase-track .range { position: absolute; top: 5px; height: 8px; background: #d5e3f5; border-radius: 2px; }
+.phase-track .fill { position: absolute; top: 2px; height: 14px; background: var(--accent); opacity: .78; border-radius: 2px; }
+.phase-track .median { position: absolute; top: 0; width: 2px; height: 18px; background: #0b2545; }
+.phase-track .p95 { position: absolute; top: 3px; width: 1px; height: 12px; background: var(--err); opacity: .75; }
+
+.phase-nums { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.phase-nums .strong { color: var(--ink); font-weight: 700; }
+
+.legend { display: flex; gap: 16px; flex-wrap: wrap; align-items: center; margin-top: 12px; font-size: 11px; color: var(--muted); }
+.legend .sw { display: inline-block; width: 16px; height: 8px; border-radius: 2px; margin-right: 5px; vertical-align: middle; }
+.legend .sw.range { background: #d5e3f5; }
+.legend .sw.fill { background: var(--accent); opacity: .78; }
+.legend .sw.median { background: #0b2545; width: 3px; height: 12px; }
+.legend .sw.p95 { background: var(--err); width: 2px; height: 12px; opacity: .75; }
+
+/* -- recent runs -- */
+
+.recent-wrap { overflow-x: auto; }
+table.recent { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.recent th {
+  text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted); border-bottom: 1px solid var(--line); padding: 5px 8px 5px 0; font-weight: 600;
+}
+table.recent td { padding: 5px 8px 5px 0; border-bottom: 1px solid #f1f3f5; }
+table.recent .num { text-align: right; font-variant-numeric: tabular-nums; }
+table.recent .row-err td { color: var(--err); }
+table.recent small { color: var(--muted); }
+
+/* -- multi-select filter groups -- */
+
+.filter-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+fieldset {
+  border: 1px solid var(--line);
+  border-radius: 5px;
+  padding: 10px 12px 12px;
+  margin: 0;
+  min-width: 0;
+}
+legend {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  color: var(--muted);
+  font-weight: 700;
+  padding: 0 4px;
+}
+.checks { display: flex; flex-direction: column; gap: 5px; }
+.checks.wide { flex-direction: row; flex-wrap: wrap; gap: 6px 18px; }
+label.check {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 400;
+  margin: 0;
+  cursor: pointer;
+}
+label.check input { width: auto; margin: 0; cursor: pointer; }
+.window-set { margin-top: 12px; }
+.window-set .hint { margin: 0 0 10px; }
+.filter-actions { margin-top: 10px; display: flex; gap: 6px; }
+
+/* -- measurement-window comparison -- */
+
+.windows-wrap { overflow-x: auto; margin-top: 6px; }
+table.windows { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.windows th {
+  text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: .05em;
+  color: var(--muted); border-bottom: 1px solid var(--line); padding: 5px 10px 5px 0; font-weight: 600;
+}
+table.windows td { padding: 6px 10px 6px 0; border-bottom: 1px solid #f1f3f5; }
+table.windows .num { text-align: right; font-variant-numeric: tabular-nums; }
+table.windows .strong { font-weight: 700; color: var(--ink); }
+table.windows tr.row-selected { background: #f0f6ff; }
+table.windows tr.row-selected td:first-child { font-weight: 600; box-shadow: inset 2px 0 0 var(--accent); }
+table.windows small { color: var(--muted); }
+
+/* -- phase tags -- */
+
+.phase-name .tag.composite { background: #eef2f7; color: var(--muted); }
+.phase-name .tag.excluded { background: #f3e8ff; color: #6b21a8; }
+.phase-row.is-excluded .fill { background: #a78bfa; }
+.phase-row.is-excluded .phase-name { color: var(--muted); }
+
+/* ---------------------------------------------------------------------------
+   Egress badge
+   ---------------------------------------------------------------------------
+   Shown on every page. Fixed bottom-right rather than in the header because both
+   pages have different headers and this must not depend on either, and because it
+   should stay visible while scrolling a long metrics table.
+
+   Colour carries meaning:
+     live   green   a pull is running; this is the IP the carrier is seeing now
+     proxy  blue    proxied, measured recently
+     direct amber   NO proxy — the most likely reason a real carrier pull fails
+     busy   grey    measuring
+
+   `direct` is amber rather than neutral on purpose. It is a standing warning, not
+   a status.
+--------------------------------------------------------------------------- */
+#egress-badge {
+  position: fixed;
+  right: 12px;
+  bottom: 12px;
+  z-index: 50;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 999px;
+  font: 500 12px/1.2 ui-monospace, SFMono-Regular, Menlo, monospace;
+  background: #1e2430;
+  color: #e8edf5;
+  border: 1px solid #2c3543;
+  box-shadow: 0 2px 10px rgb(0 0 0 / 25%);
+  /* Long enough to read, short enough not to cover content. */
+  max-width: 340px;
+}
+
+#egress-badge .eb-body { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+#egress-badge .eb-label {
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  opacity: 0.65;
+  white-space: nowrap;
+}
+#egress-badge .eb-ip {
+  font-size: 12.5px;
+  font-variant-numeric: tabular-nums;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+#egress-badge .eb-dot {
+  width: 8px; height: 8px; flex: 0 0 8px;
+  border-radius: 50%;
+  background: #6b7280;
+}
+#egress-badge[data-state='live']   .eb-dot { background: #34d399; box-shadow: 0 0 0 3px rgb(52 211 153 / 18%); }
+#egress-badge[data-state='proxy']  .eb-dot { background: #60a5fa; }
+#egress-badge[data-state='direct'] .eb-dot { background: #fbbf24; }
+#egress-badge[data-state='proxy-unknown'] .eb-dot { background: #fbbf24; }
+#egress-badge[data-state='busy']   .eb-dot { background: #9ca3af; }
+
+#egress-badge[data-state='direct'] { border-color: #6b4e11; }
+#egress-badge[data-state='live']   { border-color: #1f6b4f; }
+
+#egress-badge .eb-refresh {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  opacity: 0.55;
+  cursor: pointer;
+  font-size: 13px;
+  padding: 2px 4px;
+  border-radius: 4px;
+  line-height: 1;
+}
+#egress-badge .eb-refresh:hover:not(:disabled) { opacity: 1; background: rgb(255 255 255 / 8%); }
+#egress-badge .eb-refresh:disabled { opacity: 0.25; cursor: default; }
+/* Keyboard users need to see focus; the badge is reachable by tab. */
+#egress-badge .eb-refresh:focus-visible { outline: 2px solid #60a5fa; outline-offset: 1px; }
+
+@media (prefers-reduced-motion: no-preference) {
+  #egress-badge[data-state='live'] .eb-dot { animation: eb-pulse 2.4s ease-in-out infinite; }
+}
+@keyframes eb-pulse {
+  0%, 100% { box-shadow: 0 0 0 3px rgb(52 211 153 / 18%); }
+  50%      { box-shadow: 0 0 0 6px rgb(52 211 153 / 6%); }
+}
+
+@media (max-width: 560px) {
+  #egress-badge { left: 12px; right: 12px; max-width: none; justify-content: center; }
+}

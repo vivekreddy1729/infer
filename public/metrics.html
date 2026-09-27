@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Latency Metrics — Policy Document Puller</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<header>
+  <h1>Latency Metrics</h1>
+  <p class="tagline">
+    Every run appends its per-phase timings to <code>data/metrics.jsonl</code>.
+    These figures are measured, not estimated.
+    <a href="/">Back to the puller</a>
+  </p>
+</header>
+
+<main class="metrics-main">
+
+  <section class="panel">
+    <h2>Filters</h2>
+
+    <div class="filter-grid">
+      <fieldset>
+        <legend>Carrier</legend>
+        <div id="f-carrier" class="checks"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Auth path</legend>
+        <div id="f-path" class="checks"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Outcome</legend>
+        <div id="f-outcome" class="checks"></div>
+      </fieldset>
+
+      <fieldset>
+        <legend>Time range</legend>
+        <select id="f-since">
+          <option value="">All time</option>
+          <option value="1">Last hour</option>
+          <option value="24">Last 24 hours</option>
+          <option value="168">Last 7 days</option>
+        </select>
+        <div class="filter-actions">
+          <button type="button" id="refresh">Refresh</button>
+          <button type="button" id="reset" class="secondary">Reset</button>
+        </div>
+      </fieldset>
+    </div>
+
+    <fieldset class="window-set">
+      <legend>What to count in the headline number</legend>
+      <p class="hint">
+        Two phases are not attributable to this system: the <strong>MFA wait</strong>
+        (a person reading an SMS) and <strong>document transfer</strong> (raw bytes,
+        dominated by link and proxy speed). Exclude either to see what the code
+        itself costs.
+      </p>
+      <div id="f-window" class="checks wide"></div>
+    </fieldset>
+
+    <p class="hint" id="filter-note"></p>
+  </section>
+
+  <section class="panel">
+    <h2>Summary</h2>
+    <div id="summary" class="stat-grid"></div>
+    <h3 style="margin-top:18px">All measurement windows, same runs</h3>
+    <div id="windows" class="windows-wrap"></div>
+    <div id="breakdown" class="breakdown"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Per-step timings</h2>
+    <p class="hint">
+      Each bar spans <strong>min → max</strong>. The solid fill ends at the
+      <strong>average</strong>; the dark line marks the <strong>median</strong>;
+      the hollow tick marks <strong>p95</strong>. Sorted slowest first.
+    </p>
+    <div id="phases" class="phase-chart"></div>
+  </section>
+
+  <section class="panel">
+    <h2>Recent runs</h2>
+    <div id="recent" class="recent-wrap"></div>
+  </section>
+
+</main>
+
+<script src="/metrics.js"></script>
+<!-- Shared egress badge: one module, both pages, so they cannot disagree. -->
+<script src="/egress-badge.js"></script>
+</body>
+</html>

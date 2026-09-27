@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Keep the engineering log current",
+      "trigger": "PostToolUse",
+      "description": "Reminds the agent to append an entry to docs/ENGINEERING-LOG.md whenever a carrier adapter, the session core, or the logging/security layer is modified, so the failure/fix history stays current instead of decaying.",
+      "matcher": "src/(carriers|session|browser|telemetry|diagnostics|logging)/.*\\.js$",
+      "action": {
+        "type": "agent",
+        "prompt": "You just modified a file in the carrier adapter, session core, browser, telemetry, diagnostics or logging layer.\n\nIf this change fixed a bug, worked around carrier behaviour, or removed a footgun, append an entry to docs/ENGINEERING-LOG.md before you finish:\n\n- Use the next sequential F-NN number; never reuse one.\n- Use the template at the top of that file.\n- Record the actual evidence: the verbatim error string, HTTP status, response body, or log line. A status code is a category; a response body is an answer.\n- State what you ruled out, not just the conclusion. Most of the cost is in the wrong hypotheses.\n- If the fix guards against silent reintroduction, add or cite a test and mark the code LOAD-BEARING.\n- Never paste credentials, tokens or cookies, even expired ones.\n\nIf the change was purely cosmetic or a refactor with no behavioural lesson, skip it — the log is for surprises, not for every commit.\n\nAlso update the Timeline table and the \"Still open\" section if the status of anything changed."
+      }
+    }
+  ]
+}

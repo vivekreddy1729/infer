@@ -1,0 +1,64 @@
+# ---------------------------------------------------------------------------
+# Dependencies — reinstalled from package-lock.json
+# ---------------------------------------------------------------------------
+node_modules/
+
+# ---------------------------------------------------------------------------
+# SECRETS — never commit
+# ---------------------------------------------------------------------------
+# `.env` holds real carrier credentials, the proxy username/password and the
+# Proxy-Cheap management API key pair.
+#
+# The glob is `.env*` rather than `.env` on purpose: a plain `.env` rule matches
+# only that exact name, so `.env.bak.172608` — a real backup of a real .env that
+# existed in this working tree — was NOT covered and would have been committed.
+# Editors and scripts produce `.env.local`, `.env.save`, `.env.1` and similar
+# without being asked.
+.env*
+# ...except the template, which is the whole point of having one.
+!.env.example
+
+# ---------------------------------------------------------------------------
+# CREDENTIAL-BEARING RUNTIME STATE — never commit
+# ---------------------------------------------------------------------------
+# data/sessions/  encrypted carrier sessions. Encrypted at rest, but the key is
+#                 in .env, so treat them as live credentials.
+# data/profiles/  on-disk Chrome profiles. These carry live carrier cookies and
+#                 GEICO's "remember this device" marker. A profile directory is
+#                 as good as a logged-in browser: strictly secret material.
+data/
+storage-state/
+*.storageState.json
+
+# ---------------------------------------------------------------------------
+# CAPTURED DOCUMENTS — real policy PDFs, i.e. real PII
+# ---------------------------------------------------------------------------
+artifacts/
+out/
+*.pdf
+# Keep any PDF that is genuinely documentation rather than a captured document.
+!docs/**/*.pdf
+
+# ---------------------------------------------------------------------------
+# Generated logs and diagnostics — regenerated on the target machine
+# ---------------------------------------------------------------------------
+# logs/failures/ contains diagnostic bundles. They are redacted at the logger,
+# but they describe real accounts and there is no reason to ship them.
+logs/
+*.log
+npm-debug.log*
+
+# ---------------------------------------------------------------------------
+# Test and browser-driver output
+# ---------------------------------------------------------------------------
+test-results/
+playwright-report/
+.patchright/
+
+# ---------------------------------------------------------------------------
+# Editor and OS noise
+# ---------------------------------------------------------------------------
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/

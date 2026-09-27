@@ -1,0 +1,15 @@
+{
+  "version": "v1",
+  "hooks": [
+    {
+      "name": "Record optimisation reasoning",
+      "trigger": "PostToolUse",
+      "description": "Prompts for an OPTIMISATION-LOG.md entry whenever timing, caching, pre-warming, or concurrency code is touched, so the reasoning behind each performance decision is captured rather than only its outcome.",
+      "matcher": "src/(telemetry|browser|carriers)/.*\\.js$|src/session/pullSession\\.js$|src/config\\.js$",
+      "action": {
+        "type": "agent",
+        "prompt": "You just modified timing, browser-pool, pre-warming, or session-orchestration code — the areas where performance changes live.\n\nIf this change was made for performance reasons, append an entry to docs/OPTIMISATION-LOG.md before you finish. Use the O-NN template at the top of that file, and make sure it answers:\n\n- What was the measured problem? Include the before number.\n- What options did you consider, including the ones you did not take?\n- WHY did you choose this one first? Cost to try, cost to undo, evidence available. This is the most valuable field — the order of attempts is what future readers need.\n- What was the measured result? After number.\n- If it failed or was superseded: why, and what did the failure reveal?\n\nRules:\n- Every performance claim needs a measured number from data/metrics.jsonl or a reproduced experiment. If you cannot measure it, say so rather than estimating — one unmeasured estimate in this file was wrong by 3x and mis-sized the next decision.\n- Record failed approaches. Do not quietly replace a failed attempt with a working one; the failure is usually what revealed the right answer.\n- If you rejected an approach, add it to the \"Rejected approaches\" table with the reason, so nobody re-runs the experiment.\n- If the change also fixed a defect, add a separate F-NN entry to docs/ENGINEERING-LOG.md and cross-reference.\n\nSkip this only if the change was a pure refactor with no performance intent and no behavioural lesson."
+      }
+    }
+  ]
+}

@@ -1,0 +1,702 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Deploying Carrier Policy Puller on AWS</title>
+<style>
+  :root {
+    --bg: #0f1419; --panel: #161c24; --panel2: #1b222c; --line: #2a333f;
+    --ink: #e6edf3; --dim: #97a3b0; --accent: #58a6ff; --ok: #3fb950;
+    --warn: #d29922; --bad: #f85149; --mono: ui-monospace, SFMono-Regular, Menlo, monospace;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--bg); color: var(--ink);
+    font: 16px/1.65 -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  }
+  .wrap { max-width: 920px; margin: 0 auto; padding: 48px 24px 120px; }
+  h1 { font-size: 30px; line-height: 1.2; margin: 0 0 8px; letter-spacing: -0.02em; }
+  h2 {
+    font-size: 22px; margin: 56px 0 16px; padding-top: 24px;
+    border-top: 1px solid var(--line); letter-spacing: -0.01em;
+  }
+  h3 { font-size: 17px; margin: 32px 0 10px; }
+  p, li { color: #cdd7e0; }
+  .lede { font-size: 17px; color: var(--dim); margin: 0 0 32px; }
+  a { color: var(--accent); }
+  code {
+    font: 13.5px/1.5 var(--mono); background: var(--panel2);
+    padding: 1.5px 5px; border-radius: 4px; color: #b9c7d4;
+  }
+  pre {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    padding: 14px 16px; overflow-x: auto; font: 13px/1.6 var(--mono);
+    color: #c9d6e2; margin: 14px 0;
+  }
+  pre code { background: none; padding: 0; font-size: inherit; }
+  .box {
+    border: 1px solid var(--line); border-left-width: 3px; border-radius: 6px;
+    padding: 14px 16px; margin: 18px 0; background: var(--panel);
+  }
+  .box.warn { border-left-color: var(--warn); }
+  .box.bad { border-left-color: var(--bad); }
+  .box.ok { border-left-color: var(--ok); }
+  .box .t { font-weight: 650; margin: 0 0 6px; font-size: 14.5px; letter-spacing: 0.01em; }
+  .box.warn .t { color: var(--warn); }
+  .box.bad .t { color: var(--bad); }
+  .box.ok .t { color: var(--ok); }
+  .box p:last-child, .box ul:last-child { margin-bottom: 0; }
+  table { width: 100%; border-collapse: collapse; margin: 18px 0; font-size: 14.5px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+  th { color: var(--dim); font-weight: 600; font-size: 12.5px; text-transform: uppercase; letter-spacing: 0.05em; }
+  td code { font-size: 12.5px; }
+  .diagram {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 8px;
+    padding: 20px; margin: 20px 0; font: 12.5px/1.7 var(--mono);
+    color: #b3c1cf; overflow-x: auto; white-space: pre;
+  }
+  .step { display: flex; gap: 14px; margin: 34px 0 0; }
+  .step .n {
+    flex: 0 0 30px; height: 30px; border-radius: 50%; background: var(--panel2);
+    border: 1px solid var(--line); display: grid; place-items: center;
+    font: 600 13px var(--mono); color: var(--accent);
+  }
+  .step .c { flex: 1; min-width: 0; }
+  .step .c > h3 { margin-top: 3px; }
+  ul { padding-left: 22px; }
+  li { margin: 5px 0; }
+  .toc { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; padding: 16px 20px; }
+  .toc ol { margin: 0; padding-left: 20px; }
+  .toc li { margin: 3px 0; }
+  .pill {
+    display: inline-block; font: 600 11px var(--mono); padding: 2px 7px;
+    border-radius: 4px; background: var(--panel2); border: 1px solid var(--line);
+    color: var(--dim); vertical-align: 1px;
+  }
+  .pill.no { color: var(--bad); border-color: #5c2320; }
+  .pill.yes { color: var(--ok); border-color: #1f5c2e; }
+  footer { margin-top: 72px; padding-top: 20px; border-top: 1px solid var(--line); color: var(--dim); font-size: 14px; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<h1>Deploying Carrier Policy Puller on AWS</h1>
+<p class="lede">
+  ECS Fargate behind an Application Load Balancer, with EFS for persistent session state.
+  Everything is AWS except the residential proxy, which is Proxy-Cheap.
+</p>
+
+<div class="box warn">
+  <p class="t">Read the four constraints first</p>
+  <p>
+    This app has requirements that rule out most of the obvious AWS choices, and two of them
+    will cause failures that look like application bugs if you miss them. Each one below is
+    a measured property of the app, not a preference.
+  </p>
+</div>
+
+<div class="toc">
+  <ol>
+    <li><a href="#constraints">What the app needs, and why</a></li>
+    <li><a href="#why-not">Why not Lambda, App Runner, or EKS</a></li>
+    <li><a href="#architecture">Architecture</a></li>
+    <li><a href="#cost">Cost</a></li>
+    <li><a href="#deploy">Deployment, step by step</a></li>
+    <li><a href="#proxy">Proxy-Cheap configuration</a></li>
+    <li><a href="#verify">Verifying the deployment</a></li>
+    <li><a href="#gotchas">Failure modes that look like app bugs</a></li>
+    <li><a href="#cheaper">A cheaper single-EC2 alternative</a></li>
+  </ol>
+</div>
+
+<h2 id="constraints">1. What the app needs, and why</h2>
+
+<h3>It runs a real, headed Chrome</h3>
+<p>
+  GEICO's login endpoint <code>POST /ws/login/authenticate</code> returns <strong>302 under
+  headless</strong> and <strong>200 headed</strong> — same machine, same IP, same browser
+  binary. The single-page app cannot follow that redirect, so login stalls with no error.
+  Measured, documented as F-40 in the engineering log.
+</p>
+<p>
+  So the container runs Chrome under <strong>Xvfb</strong>, a virtual framebuffer. It is a
+  full windowed browser with no window anywhere and no X server needed on the host. The
+  image's entrypoint does this automatically when <code>HEADLESS=false</code>.
+</p>
+<p>Consequence: you need a container runtime with ~4GB RAM, not a function runtime.</p>
+
+<h3>Sessions live in memory, and a pull waits on a human</h3>
+<p>
+  <code>SessionManager</code> holds live session objects, each owning an open browser
+  context. The WebSocket carrying MFA state <strong>must return to the same
+  container</strong> — there is no shared session store.
+</p>
+<p>
+  And <code>MFA_WAIT_TIMEOUT_MS</code> is <strong>180 seconds</strong>, because a person has
+  to read a text message and type a code. That single number invalidates several AWS
+  defaults, most importantly the load balancer's.
+</p>
+
+<h3>State must survive a restart</h3>
+<p>
+  <code>/app/data</code> holds AES-256-GCM encrypted <code>storageState</code> blobs, the
+  metrics history, and rotating logs. Those blobs carry each carrier's
+  <strong>trusted-device cookie</strong>, which is what lets a repeat pull skip the MFA
+  challenge entirely. Lose the volume and every user is silently back to a full human
+  round-trip on every pull.
+</p>
+
+<h3>Carrier traffic must egress from one residential IP</h3>
+<p>
+  Handled by Proxy-Cheap, not AWS. What AWS must provide is plain outbound internet from the
+  task so it can reach the proxy gateway. The task's own public IP is irrelevant to the
+  carrier — all carrier traffic leaves through the proxy.
+</p>
+
+<h2 id="why-not">2. Why not Lambda, App Runner, or EKS</h2>
+
+<table>
+  <tr><th>Option</th><th></th><th>Why</th></tr>
+  <tr>
+    <td><strong>Lambda</strong></td><td><span class="pill no">no</span></td>
+    <td>No Xvfb and no way to install it into the runtime. 15-minute ceiling is fine but
+      there are no long-lived WebSocket connections, and session state would have to move to
+      DynamoDB or ElastiCache — which cannot hold an open browser context at all.</td>
+  </tr>
+  <tr>
+    <td><strong>App Runner</strong></td><td><span class="pill no">no</span></td>
+    <td>Closest miss. It runs containers happily, but there is <strong>no EFS support</strong>,
+      so there is nowhere to persist the encrypted session store, and no control over
+      <code>/dev/shm</code>. Also no way to pin traffic to one instance.</td>
+  </tr>
+  <tr>
+    <td><strong>EKS</strong></td><td><span class="pill no">no</span></td>
+    <td>It would work. A control plane costs $73/month before a single pod runs, to schedule
+      one container that must not be replicated.</td>
+  </tr>
+  <tr>
+    <td><strong>Elastic Beanstalk</strong></td><td><span class="pill no">no</span></td>
+    <td>Works, and wraps ECS in another abstraction whose defaults you then have to fight —
+      particularly the load balancer idle timeout.</td>
+  </tr>
+  <tr>
+    <td><strong>ECS Fargate</strong></td><td><span class="pill yes">use this</span></td>
+    <td>Containers, EFS, Secrets Manager, ALB, CloudWatch, no servers to patch. One caveat
+      about <code>/dev/shm</code> below, which this app already handles.</td>
+  </tr>
+  <tr>
+    <td><strong>ECS on EC2</strong></td><td><span class="pill">alternative</span></td>
+    <td>Cheaper at this size and lets you raise <code>/dev/shm</code>. You patch the host.
+      See <a href="#cheaper">section 9</a>.</td>
+  </tr>
+</table>
+
+<div class="box bad">
+  <p class="t">Fargate cannot raise /dev/shm — and this matters for Chrome</p>
+  <p>
+    AWS's ECS documentation states plainly that for the Fargate launch type, the
+    <code>devices</code>, <strong><code>sharedMemorySize</code></strong> and
+    <code>tmpfs</code> parameters are <strong>not supported</strong>. You are stuck with the
+    64MB default, and <code>docker-compose.yml</code>'s <code>shm_size: 1gb</code> has no
+    Fargate equivalent.
+  </p>
+  <p>
+    Chrome normally crashes on content-heavy pages with 64MB of shared memory. This app
+    survives because <code>src/browser/stealth.js</code> already passes
+    <code>--disable-dev-shm-usage</code>, which makes Chrome write to <code>/tmp</code>
+    instead.
+  </p>
+  <p>
+    <strong>That flag is therefore load-bearing on Fargate specifically.</strong> Removing it
+    as a "cleanup" would work locally and in Docker Compose, and break in production only
+    under load. If you want the shared memory instead, use ECS on EC2.
+  </p>
+</div>
+
+<h2 id="architecture">3. Architecture</h2>
+
+<div class="diagram">                    Route 53  (your domain)
+                          │
+                          ▼
+          ┌──────────────────────────────────┐
+          │  Application Load Balancer        │  HTTPS :443  (ACM cert)
+          │  idle timeout 300s  ← NOT default │  WebSocket upgrade
+          └──────────────────────────────────┘
+                          │  :3000
+                          ▼
+          ┌──────────────────────────────────┐
+          │  ECS Fargate service              │
+          │  desiredCount = 1   ← deliberate  │
+          │  2 vCPU / 4 GB                    │
+          │                                   │
+          │  ┌────────────────────────────┐   │
+          │  │ Node 20 + Fastify          │   │
+          │  │ Xvfb → headed Chrome       │   │
+          │  └────────────────────────────┘   │
+          └──────────────────────────────────┘
+             │              │            │
+             │              │            └──► CloudWatch Logs
+             │              │
+             │              └──► EFS  /app/data   (encrypted sessions,
+             │                                     metrics, rotating logs)
+             │
+             └──► Proxy-Cheap residential gateway ──► GEICO / Progressive
+                  (sticky session per pull)
+
+  Secrets Manager ──► task definition `secrets` ──► env vars at start
+  ECR             ──► image
+</div>
+
+<table>
+  <tr><th>Service</th><th>Role</th><th>Non-obvious setting</th></tr>
+  <tr><td>ECR</td><td>Image registry</td><td>—</td></tr>
+  <tr><td>ECS Fargate</td><td>Runs the container</td><td><code>desiredCount=1</code>; 4GB memory</td></tr>
+  <tr><td>ALB</td><td>HTTPS, WebSocket</td><td><strong>idle timeout 300s</strong> (default 60s breaks MFA)</td></tr>
+  <tr><td>ACM</td><td>TLS certificate</td><td>Must be in the ALB's region</td></tr>
+  <tr><td>Route 53</td><td>DNS</td><td>Alias A record to the ALB</td></tr>
+  <tr><td>EFS</td><td><code>/app/data</code></td><td>Access point with POSIX uid/gid <strong>1000</strong></td></tr>
+  <tr><td>Secrets Manager</td><td>Key, token, proxy creds</td><td>Task <em>execution</em> role needs read access</td></tr>
+  <tr><td>CloudWatch Logs</td><td>stdout/stderr</td><td>App also writes files to EFS — keep both</td></tr>
+  <tr><td>VPC</td><td>Networking</td><td>Public subnets + <code>assignPublicIp=ENABLED</code> to avoid a NAT gateway</td></tr>
+</table>
+
+<h2 id="cost">4. Cost</h2>
+
+<table>
+  <tr><th>Item</th><th>Monthly (us-east-1, 24/7)</th><th>Note</th></tr>
+  <tr><td>Fargate 2 vCPU / 4 GB</td><td>~$72</td><td>The bulk of it. Scale to zero overnight to roughly halve it.</td></tr>
+  <tr><td>ALB</td><td>~$17 + LCU</td><td>LCU is negligible at this traffic.</td></tr>
+  <tr><td>EFS</td><td>~$0.30</td><td>Session blobs and logs are a few MB.</td></tr>
+  <tr><td>Secrets Manager</td><td>~$1.20</td><td>$0.40 per secret; three of them.</td></tr>
+  <tr><td>CloudWatch Logs</td><td>~$1</td><td>Set a 14-day retention or it grows forever.</td></tr>
+  <tr><td>ECR</td><td>~$0.20</td><td>The Playwright base image is ~2GB.</td></tr>
+  <tr><td>Route 53</td><td>$0.50</td><td>Per hosted zone.</td></tr>
+  <tr><td>NAT Gateway</td><td><strong>$0 — avoided</strong></td><td>~$33/month if you use private subnets. Public subnets with a public IP are fine here; nothing inbound reaches the task except via the ALB security group.</td></tr>
+  <tr><td><strong>Total</strong></td><td><strong>~$92</strong></td><td>Plus Proxy-Cheap bandwidth (~$4/GB; a pull is a few MB).</td></tr>
+</table>
+
+<div class="box">
+  <p class="t">Stopping the clock</p>
+  <p>
+    This is a demonstrable app, not a 24/7 service. <code>aws ecs update-service
+    --desired-count 0</code> stops Fargate billing within a minute and leaves EFS, the image
+    and the secrets intact. Bringing it back is the same command with <code>1</code>, and
+    takes about 60 seconds. The ALB bills regardless — delete it too if you are pausing for
+    weeks.
+  </p>
+</div>
+
+<h2 id="deploy">5. Deployment, step by step</h2>
+
+<p>Set these once for the whole session:</p>
+<pre><code>export AWS_REGION=us-east-1
+export ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+export APP=carrier-policy-puller
+export ECR="$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com/$APP"</code></pre>
+
+<div class="step"><div class="n">1</div><div class="c">
+<h3>Build and push the image</h3>
+<p>
+  Build for <code>linux/amd64</code> explicitly. On an Apple Silicon Mac the default is
+  arm64, and Fargate will pull an image it cannot execute — the task dies with
+  <code>exec format error</code>, which reads like a corrupt image.
+</p>
+<pre><code>aws ecr create-repository --repository-name $APP --region $AWS_REGION
+
+aws ecr get-login-password --region $AWS_REGION \
+  | docker login --username AWS --password-stdin "$ACCOUNT_ID.dkr.ecr.$AWS_REGION.amazonaws.com"
+
+docker buildx build --platform linux/amd64 -t "$ECR:latest" --push .</code></pre>
+</div></div>
+
+<div class="step"><div class="n">2</div><div class="c">
+<h3>Store the secrets</h3>
+<p>
+  The app <strong>refuses to boot</strong> in production without
+  <code>SESSION_ENCRYPTION_KEY</code>. That is deliberate: without a stable key the session
+  store is unreadable after every deploy, and every pull silently costs a human MFA
+  round-trip.
+</p>
+<pre><code>aws secretsmanager create-secret --name $APP/session-key \
+  --secret-string "$(node -e "console.log(require('crypto').randomBytes(32).toString('hex'))")"
+
+aws secretsmanager create-secret --name $APP/diagnostics-token \
+  --secret-string "$(node -e "console.log(require('crypto').randomBytes(24).toString('hex'))")"
+
+# Proxy-Cheap: full URL including credentials, from your dashboard
+aws secretsmanager create-secret --name $APP/proxy-url \
+  --secret-string 'http://USER:PASS@gate.proxy-cheap.com:PORT'</code></pre>
+</div></div>
+
+<div class="step"><div class="n">3</div><div class="c">
+<h3>Create the EFS filesystem and an access point</h3>
+<p>
+  The access point is the part people skip, and then the mount is read-only. The container
+  runs as <code>pwuser</code> — <strong>not root</strong>, confirmed in the Dockerfile — so
+  without a POSIX-mapped access point EFS presents a root-owned filesystem and the app cannot
+  write its session store. The symptom is subtle: the app starts fine and every pull just
+  quietly asks for MFA again, because the session store is never written.
+</p>
+<div class="box warn">
+  <p class="t">Check the uid before you set it — 1000 is conventional, not guaranteed</p>
+  <p>
+    The Playwright base image conventionally gives <code>pwuser</code> uid 1000, and the
+    commands below assume it. That was <strong>not verified</strong> while writing this
+    document, so confirm it rather than trusting it — an access point mapped to the wrong uid
+    produces exactly the silent unwritable-mount failure described above.
+  </p>
+  <pre><code>docker run --rm --entrypoint id "$ECR:latest"
+# uid=1000(pwuser) gid=1000(pwuser) ...  <- use these two numbers below</code></pre>
+</div>
+<pre><code>EFS_ID=$(aws efs create-file-system --encrypted \
+  --tags Key=Name,Value=$APP --query FileSystemId --output text)
+
+# One mount target per subnet the task runs in
+aws efs create-mount-target --file-system-id $EFS_ID \
+  --subnet-id subnet-AAA --security-groups sg-EFS
+
+AP_ID=$(aws efs create-access-point --file-system-id $EFS_ID \
+  --posix-user Uid=1000,Gid=1000 \
+  --root-directory 'Path=/data,CreationInfo={OwnerUid=1000,OwnerGid=1000,Permissions=0700}' \
+  --query AccessPointId --output text)</code></pre>
+<p>Confirm the uid if you have changed the base image:</p>
+<pre><code>docker run --rm --entrypoint id "$ECR:latest"</code></pre>
+</div></div>
+
+<div class="step"><div class="n">4</div><div class="c">
+<h3>Register the task definition</h3>
+<p>
+  <code>HEADLESS=false</code> is set here rather than left to an environment file, so a
+  developer's local <code>.env</code> cannot silently disable a carrier in production.
+</p>
+<pre><code>cat &gt; task-def.json &lt;&lt;'JSON'
+{
+  "family": "carrier-policy-puller",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "2048",
+  "memory": "4096",
+  "executionRoleArn": "arn:aws:iam::ACCOUNT:role/ecsTaskExecutionRole",
+  "taskRoleArn": "arn:aws:iam::ACCOUNT:role/carrierPullerTaskRole",
+  "volumes": [{
+    "name": "data",
+    "efsVolumeConfiguration": {
+      "fileSystemId": "fs-XXXX",
+      "transitEncryption": "ENABLED",
+      "authorizationConfig": { "accessPointId": "fsap-XXXX", "iam": "ENABLED" }
+    }
+  }],
+  "containerDefinitions": [{
+    "name": "app",
+    "image": "ACCOUNT.dkr.ecr.REGION.amazonaws.com/carrier-policy-puller:latest",
+    "essential": true,
+    "portMappings": [{ "containerPort": 3000, "protocol": "tcp" }],
+    "mountPoints": [{ "sourceVolume": "data", "containerPath": "/app/data" }],
+    "environment": [
+      { "name": "NODE_ENV",     "value": "production" },
+      { "name": "PORT",         "value": "3000" },
+      { "name": "HOST",         "value": "0.0.0.0" },
+      { "name": "HEADLESS",     "value": "false" },
+      { "name": "DATA_DIR",     "value": "/app/data" },
+      { "name": "LOG_DIR",      "value": "/app/data/logs" },
+      { "name": "NO_PRETTY",    "value": "1" },
+      { "name": "PROXY_USERNAME_TEMPLATE", "value": "{user}-session-{session}" }
+    ],
+    "secrets": [
+      { "name": "SESSION_ENCRYPTION_KEY", "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:carrier-policy-puller/session-key" },
+      { "name": "DIAGNOSTICS_TOKEN",      "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:carrier-policy-puller/diagnostics-token" },
+      { "name": "RESIDENTIAL_PROXY_URL",  "valueFrom": "arn:aws:secretsmanager:REGION:ACCOUNT:secret:carrier-policy-puller/proxy-url" }
+    ],
+    "logConfiguration": {
+      "logDriver": "awslogs",
+      "options": {
+        "awslogs-group": "/ecs/carrier-policy-puller",
+        "awslogs-region": "REGION",
+        "awslogs-stream-prefix": "app",
+        "awslogs-create-group": "true"
+      }
+    },
+    "healthCheck": {
+      "command": ["CMD-SHELL", "node -e \"fetch('http://127.0.0.1:3000/api/health').then(r=&gt;r.ok?process.exit(0):process.exit(1)).catch(()=&gt;process.exit(1))\""],
+      "interval": 30, "timeout": 10, "retries": 3, "startPeriod": 90
+    }
+  }]
+}
+JSON
+
+aws ecs register-task-definition --cli-input-json file://task-def.json</code></pre>
+<div class="box warn">
+  <p class="t">startPeriod 90, not the default</p>
+  <p>
+    Xvfb plus Chrome plus the Node process takes well over the default grace period on a cold
+    Fargate task. Too short and ECS kills the task before it is ready, then restarts it, in a
+    loop that looks like a crash.
+  </p>
+</div>
+</div></div>
+
+<div class="step"><div class="n">5</div><div class="c">
+<h3>Create the load balancer — and change the idle timeout</h3>
+<p>This is the setting that will cost you an afternoon if you miss it.</p>
+<pre><code>ALB_ARN=$(aws elbv2 create-load-balancer --name $APP-alb \
+  --subnets subnet-AAA subnet-BBB --security-groups sg-ALB --scheme internet-facing \
+  --query 'LoadBalancers[0].LoadBalancerArn' --output text)
+
+# THE CRITICAL LINE. Default is 60s; the app waits up to 180s for a human MFA code.
+aws elbv2 modify-load-balancer-attributes --load-balancer-arn $ALB_ARN \
+  --attributes Key=idle_timeout.timeout_seconds,Value=300
+
+TG_ARN=$(aws elbv2 create-target-group --name $APP-tg \
+  --protocol HTTP --port 3000 --vpc-id vpc-XXXX --target-type ip \
+  --health-check-path /api/health --health-check-interval-seconds 30 \
+  --healthy-threshold-count 2 --unhealthy-threshold-count 3 \
+  --query 'TargetGroups[0].TargetGroupArn' --output text)
+
+aws elbv2 create-listener --load-balancer-arn $ALB_ARN \
+  --protocol HTTPS --port 443 \
+  --certificates CertificateArn=arn:aws:acm:REGION:ACCOUNT:certificate/XXXX \
+  --default-actions Type=forward,TargetGroupArn=$TG_ARN</code></pre>
+<div class="box bad">
+  <p class="t">ALB idle timeout 60s vs MFA wait 180s</p>
+  <p>
+    The WebSocket carrying MFA state is idle while the user reads a text message. At the
+    default 60 seconds the ALB closes it mid-wait, and the failure presents as
+    <em>"the connection to this session is closed"</em> or a silent timeout — pointing at the
+    app, the browser, or the carrier. 300 seconds clears the 180-second wait with margin.
+  </p>
+  <p>
+    If you ever raise <code>MFA_WAIT_TIMEOUT_MS</code>, raise this with it. They are coupled
+    and nothing enforces it.
+  </p>
+</div>
+</div></div>
+
+<div class="step"><div class="n">6</div><div class="c">
+<h3>Create the service with exactly one task</h3>
+<pre><code>aws ecs create-service --cluster $APP-cluster --service-name $APP \
+  --task-definition carrier-policy-puller --desired-count 1 --launch-type FARGATE \
+  --network-configuration 'awsvpcConfiguration={subnets=[subnet-AAA,subnet-BBB],securityGroups=[sg-TASK],assignPublicIp=ENABLED}' \
+  --load-balancers targetGroupArn=$TG_ARN,containerName=app,containerPort=3000 \
+  --health-check-grace-period-seconds 120</code></pre>
+<div class="box warn">
+  <p class="t">desiredCount = 1 is a correctness requirement, not thrift</p>
+  <p>
+    Sessions are held in an in-memory <code>Map</code>, each owning an open browser context.
+    With two tasks, a user's WebSocket can land on the container that is not running their
+    pull, and the MFA code goes nowhere — intermittently, and only under concurrency.
+  </p>
+  <p>
+    To scale beyond one task you need either ALB target-group stickiness with an application
+    cookie, or to move session state out of process. Neither is done, and one task is the
+    honest configuration for the current design.
+  </p>
+</div>
+</div></div>
+
+<div class="step"><div class="n">7</div><div class="c">
+<h3>Security groups and DNS</h3>
+<pre><code># ALB: public HTTPS in
+aws ec2 authorize-security-group-ingress --group-id sg-ALB \
+  --protocol tcp --port 443 --cidr 0.0.0.0/0
+
+# Task: only from the ALB
+aws ec2 authorize-security-group-ingress --group-id sg-TASK \
+  --protocol tcp --port 3000 --source-group sg-ALB
+
+# EFS: NFS only from the task
+aws ec2 authorize-security-group-ingress --group-id sg-EFS \
+  --protocol tcp --port 2049 --source-group sg-TASK</code></pre>
+<p>Then an alias A record in Route 53 pointing your hostname at the ALB.</p>
+</div></div>
+
+<h2 id="proxy">6. Proxy-Cheap configuration</h2>
+
+<p>
+  The only non-AWS component. Two settings, and one of them fails silently if it is wrong.
+</p>
+
+<table>
+  <tr><th>Variable</th><th>Where</th><th>Value</th></tr>
+  <tr><td><code>RESIDENTIAL_PROXY_URL</code></td><td>Secrets Manager</td><td><code>http://USER:PASS@gate.proxy-cheap.com:PORT</code></td></tr>
+  <tr><td><code>PROXY_USERNAME_TEMPLATE</code></td><td>Task definition env</td><td><code>{user}-session-{session}</code> — <strong>verify this</strong></td></tr>
+</table>
+
+<div class="box bad">
+  <p class="t">A wrong sticky template does not error — it silently rotates</p>
+  <p>
+    Residential gateways parse the proxy username, apply the flags they recognise, and ignore
+    the rest. A wrong template therefore gives you a working proxy that changes IP on every
+    connection. Login leaves from one address, the MFA submit from another, the document fetch
+    from a third — and the carrier, seeing a session hop between cities, invalidates it. The
+    error arrives as <em>"your session expired"</em>, pointing three layers away from the
+    cause.
+  </p>
+  <p>
+    Every provider spells stickiness differently and there is no standard. The template above
+    is a <strong>starting guess</strong>: Proxy-Cheap's published API at
+    <code>docs.proxy-cheap.com</code> is their <em>ordering</em> API — services, pricing,
+    placing orders — and does not describe the connection protocol. Get the exact syntax from
+    the dashboard.
+  </p>
+  <p>Then prove it, locally, before deploying:</p>
+  <pre><code>npm run proxy:verify</code></pre>
+  <p>
+    That holds one session for 45 seconds and requires the IP never to change — and separately
+    requires a <em>different</em> session to get a <em>different</em> IP, which is what
+    distinguishes working stickiness from an account that happens to have one static exit.
+  </p>
+</div>
+
+<p>
+  Pick a session lifetime <strong>longer than your worst-case pull</strong>. The app allows 180
+  seconds for a human to enter a code, so a 10-minute lifetime is a sensible floor. A
+  one-minute lifetime will drop mid-flow.
+</p>
+<p>
+  The app pins the exit IP when a session opens and re-checks it before fetching documents. It
+  cannot prevent a rotation — the IP belongs to someone's home connection — but it names one,
+  which given the alternative attributions is most of the value.
+</p>
+
+<h2 id="verify">7. Verifying the deployment</h2>
+
+<pre><code># 1. Is the task healthy?
+aws ecs describe-services --cluster $APP-cluster --services $APP \
+  --query 'services[0].{running:runningCount,desired:desiredCount,deployments:deployments[0].rolloutState}'
+
+# 2. Does the app answer, and what did it load?
+curl -s https://YOUR_DOMAIN/api/health | jq '{
+  ok, uptimeSec,
+  browser: .browser,
+  headless: .config.headless,
+  proxy: .proxy
+}'</code></pre>
+
+<p>What to check in that response:</p>
+<ul>
+  <li><code>config.headless</code> is <strong>false</strong> — otherwise GEICO will stall.</li>
+  <li><code>browser.channel</code> — expect <code>chromium</code> from the Playwright image;
+    <code>chrome-headless-shell</code> would mean the channel fallback degraded.</li>
+  <li><code>proxy.configured</code> is true and <code>proxy.stickyPlaceholderPresent</code> is
+    true. Note it reports <code>stickyVerified: "unknown"</code> by design — that is an
+    empirical question, answered by <code>npm run proxy:verify</code>, not by a config file.</li>
+</ul>
+
+<pre><code># 3. Does the WebSocket survive longer than the ALB default?
+#    Open the app, start a DEMO MUTUAL pull, and leave the MFA prompt
+#    untouched for 90 seconds before entering the code. If it completes,
+#    the idle timeout is right.
+
+# 4. End to end with no credentials
+#    Pick "Demo Mutual (practice portal)" and run a pull. It exercises
+#    login, the MFA round-trip, document fetch and PDF rendering.</code></pre>
+
+<p>The egress badge in the bottom-right of every page shows which IP carrier traffic is
+leaving from. Amber means no proxy; blue means proxied; green means a pull is running and that
+is the address the carrier is seeing right now.</p>
+
+<h2 id="gotchas">8. Failure modes that look like app bugs</h2>
+
+<table>
+  <tr><th>Symptom</th><th>Actual cause</th><th>Fix</th></tr>
+  <tr>
+    <td>MFA prompt appears, code is entered, nothing happens</td>
+    <td>ALB idle timeout closed the WebSocket while the user read the text</td>
+    <td><code>idle_timeout.timeout_seconds=300</code></td>
+  </tr>
+  <tr>
+    <td>Task starts, then stops, repeatedly</td>
+    <td>Health check <code>startPeriod</code> too short for Xvfb + Chrome + Node</td>
+    <td><code>startPeriod: 90</code> and service grace period 120</td>
+  </tr>
+  <tr>
+    <td><code>exec format error</code></td>
+    <td>Image built for arm64 on an Apple Silicon Mac</td>
+    <td><code>docker buildx build --platform linux/amd64</code></td>
+  </tr>
+  <tr>
+    <td>Runs, but every pull asks for MFA and sessions never resume</td>
+    <td>EFS not writable — access point missing, or POSIX uid is not 1000</td>
+    <td>Access point with <code>Uid=1000,Gid=1000</code>; confirm with <code>docker run --rm --entrypoint id IMAGE</code></td>
+  </tr>
+  <tr>
+    <td>Container exits immediately at boot</td>
+    <td><code>SESSION_ENCRYPTION_KEY</code> missing — the app refuses to start in production</td>
+    <td>Add the secret. The error message says exactly this.</td>
+  </tr>
+  <tr>
+    <td>GEICO login hangs with no error</td>
+    <td><code>HEADLESS</code> is not <code>false</code></td>
+    <td>Set it in the task definition, not just <code>.env</code></td>
+  </tr>
+  <tr>
+    <td>Carrier says the session expired, intermittently</td>
+    <td>Proxy rotated mid-pull — wrong sticky template, or lifetime shorter than the pull</td>
+    <td><code>npm run proxy:verify</code>; raise the session lifetime</td>
+  </tr>
+  <tr>
+    <td>Chrome crashes on document-heavy pages</td>
+    <td>64MB <code>/dev/shm</code>, which Fargate cannot raise</td>
+    <td>Keep <code>--disable-dev-shm-usage</code>, or move to ECS on EC2</td>
+  </tr>
+  <tr>
+    <td>MFA works for one user, breaks under concurrency</td>
+    <td>More than one task; the WebSocket reached the wrong container</td>
+    <td><code>desiredCount=1</code>, or add ALB stickiness</td>
+  </tr>
+</table>
+
+<h3>Getting logs out</h3>
+<pre><code># CloudWatch (stdout/stderr)
+aws logs tail /ecs/carrier-policy-puller --follow
+
+# The app's own structured logs and failure bundles live on EFS, and include
+# carrier API traces and diagnostic bundles CloudWatch does not have.
+curl -s -H "x-diagnostics-token: $TOKEN" https://YOUR_DOMAIN/api/diagnostics/failures</code></pre>
+<p>
+  Diagnostic bundles are written expressly to be shared and are scrubbed of credential
+  material — a scan of everything written to disk runs as part of
+  <code>npm run smoke:all</code>.
+</p>
+
+<h2 id="cheaper">9. A cheaper single-EC2 alternative</h2>
+
+<p>
+  If ~$92/month is more than this warrants, one <code>t3.medium</code> with an EBS volume and
+  Caddy for TLS runs the same container for about <strong>$32/month</strong>. You give up
+  managed TLS rotation, the ALB health-check loop, and painless host patching — and you gain
+  the ability to set <code>--shm-size</code> properly.
+</p>
+<pre><code>docker run -d --name puller --restart unless-stopped \
+  -p 127.0.0.1:3000:3000 \
+  --shm-size=1g \
+  -v /srv/puller-data:/app/data \
+  -e NODE_ENV=production -e HEADLESS=false \
+  -e DATA_DIR=/app/data -e LOG_DIR=/app/data/logs \
+  -e SESSION_ENCRYPTION_KEY=... \
+  -e RESIDENTIAL_PROXY_URL=... \
+  -e 'PROXY_USERNAME_TEMPLATE={user}-session-{session}' \
+  "$ECR:latest"</code></pre>
+<p>
+  Then Caddy in front, which gets you Let's Encrypt and correct WebSocket proxying in two
+  lines — including a read timeout long enough for the MFA wait:
+</p>
+<pre><code>your.domain {
+  reverse_proxy 127.0.0.1:3000
+}</code></pre>
+<p>
+  Caddy's default timeouts do not cut idle WebSockets, so the ALB trap does not apply. Still
+  set the security group to allow only 80 and 443 inbound.
+</p>
+
+<footer>
+  Written against the app as of the current commit. The engineering log
+  (<code>docs/ENGINEERING-LOG.md</code>) records why each constraint exists — F-40 for
+  headless, F-44 for the session key and device trust, F-46 for proxy stickiness.
+</footer>
+
+</div>
+</body>
+</html>

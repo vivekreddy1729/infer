@@ -1,0 +1,23 @@
+node_modules
+npm-debug.log*
+.git
+.gitignore
+.env
+.env.*
+!.env.example
+
+# Never bake persisted sessions or captured documents into an image.
+data
+storage-state
+artifacts
+out
+*.pdf
+
+.DS_Store
+.idea
+.vscode
+README.md
+docs
+*.log
+test-results
+playwright-report

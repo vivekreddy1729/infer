@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Policy Document Puller</title>
+<link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+
+<header>
+  <h1>Policy Document Puller</h1>
+  <p class="tagline">
+    Pulls declarations pages from carrier portals. Handles step-up MFA.
+    <a href="/metrics.html">Latency metrics</a>
+  </p>
+</header>
+
+<main>
+  <section class="panel">
+    <h2>1. Credentials</h2>
+
+    <form id="pull-form" autocomplete="off">
+      <label for="carrier">Carrier</label>
+      <select id="carrier" name="carrierId" required>
+        <option value="">Loading carriers…</option>
+      </select>
+      <p class="hint" id="carrier-hint"></p>
+
+      <label for="username">Portal username / email</label>
+      <input id="username" name="username" type="text" autocomplete="off" spellcheck="false" required>
+
+      <label for="password">Portal password</label>
+      <input id="password" name="password" type="password" autocomplete="off" required>
+
+      <p class="hint security">
+        Credentials are held in memory for this one attempt, used only to sign in to the carrier,
+        and never logged or written to disk.
+      </p>
+
+      <div class="actions">
+        <button type="submit" id="submit-btn">Pull my documents</button>
+        <button type="button" id="cancel-btn" class="secondary" hidden>Cancel</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="panel">
+    <h2>2. Progress</h2>
+    <div id="state-badge" class="badge idle">IDLE</div>
+    <ol id="status-log" aria-live="polite"></ol>
+    <div id="timings" class="timings" hidden></div>
+  </section>
+
+  <section class="panel" id="documents-panel" hidden>
+    <h2>3. Documents</h2>
+    <div id="doc-tabs" class="doc-tabs"></div>
+    <iframe id="doc-viewer" title="Policy document"></iframe>
+  </section>
+</main>
+
+<!-- MFA prompt. Appears only when the carrier actually challenges. -->
+<div id="mfa-overlay" class="overlay" hidden>
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="mfa-title">
+    <h2 id="mfa-title">Enter your verification code</h2>
+    <p id="mfa-hint" class="hint"></p>
+    <p id="mfa-demo" class="demo-code" hidden></p>
+    <form id="mfa-form">
+      <label for="mfa-code">Code</label>
+      <!--
+        Codes are ALPHANUMERIC. Do not put `pattern="[0-9]*"` back.
+
+        GEICO issues codes like 326F40. `pattern="[0-9]*"` made the form refuse to
+        submit one at all, and `inputmode="numeric"` offers a digits-only keypad on a
+        phone, so the letter could not even be typed there.
+
+        `inputmode="text"` with `autocapitalize="characters"` accepts letters and
+        digits and matches how GEICO presents the code. `autocomplete="one-time-code"`
+        is kept — it still drives OS-level SMS autofill, which is not restricted to
+        numeric codes. No `pattern` at all: the carrier is the authority on its own
+        code format, and validating the shape here would reject a valid code from a
+        carrier nobody has onboarded yet.
+      -->
+      <input id="mfa-code" inputmode="text" autocomplete="one-time-code"
+             autocapitalize="characters" autocorrect="off" spellcheck="false"
+             maxlength="12" required>
+      <p id="mfa-error" class="error" hidden></p>
+      <div class="actions">
+        <button type="submit" id="mfa-submit">Submit code</button>
+        <button type="button" id="mfa-cancel" class="secondary" hidden>Close and start over</button>
+      </div>
+    </form>
+    <p class="hint" id="mfa-countdown"></p>
+  </div>
+</div>
+
+<script src="/app.js"></script>
+<!-- Shared egress badge: one module, both pages, so they cannot disagree. -->
+<script src="/egress-badge.js"></script>
+</body>
+</html>
