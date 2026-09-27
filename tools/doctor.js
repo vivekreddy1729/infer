@@ -83,9 +83,9 @@ try {
   } else {
     warn(
       `browser falls back to "${used}" — real Chrome is not installed`,
-      'npx playwright install chrome   (stealth.js: a named channel does more for '
-        + 'detectability than every JS patch combined; carrier behaviour on bundled '
-        + 'Chromium is not representative)'
+      'npm run browsers:chrome   (asks for your password — installs Chrome system-wide. '
+        + 'stealth.js: a named channel does more for detectability than every JS patch '
+        + 'combined; carrier behaviour on bundled Chromium is not representative)'
     );
   }
 } catch (err) {

@@ -99,6 +99,19 @@ and no proxy, and it exercises the whole pipeline.
 `npm run setup` is non-interactive and safe to re-run. It will not overwrite an existing
 `.env`, and it finishes by running `npm run doctor`, so anything missing is reported there.
 
+**`npm install` does not download the browser.** That is deliberate — it would add ~500MB to
+every dependency install. The download happens in `npm run setup`, so do not skip that step. If
+you ever see a "no browser is installed" error, run it directly:
+
+```bash
+npm run browsers          # Chromium. Non-interactive.
+npm run browsers:chrome   # Optional: real Chrome. Asks for your password.
+```
+
+Real Chrome is preferred — the code tries it first and falls back to bundled Chromium, which is
+a weaker anti-detection posture. It is optional, and not needed for the demo portal.
+`npm run doctor` tells you which one is actually in use.
+
 ### Check the environment
 
 ```bash

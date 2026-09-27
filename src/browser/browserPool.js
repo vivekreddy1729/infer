@@ -167,7 +167,49 @@ class BrowserPool {
           log.warn({ channel: opts.channel, err: err.message }, 'browser launch attempt failed');
         }
       }
-      throw new Error(`Could not launch a browser: ${lastErr?.message}`);
+      /**
+       * Translate "no browser downloaded" into this project's own instructions.
+       *
+       * Every channel failing usually means one specific, recoverable thing: nobody ran
+       * the browser download. `npm install` does NOT do it — there is no `postinstall`
+       * hook, deliberately, because a ~500MB download as a side effect of installing
+       * dependencies is hostile in CI and on metered connections.
+       *
+       * The raw driver error is unhelpful here in a way that actively misleads. It says
+       * *"Please run the following command to download new browsers: npx playwright
+       * install"* — a command this project never documents. Someone who followed the
+       * README ran `npm run setup`, so being told to run an unfamiliar Playwright command
+       * reads as though the documented path was wrong, when in fact the download simply
+       * did not happen or did not finish. Reported by a user hitting it on `npm start`
+       * (F-58).
+       *
+       * The raw error is still appended, because when the cause is something else —
+       * missing shared libraries, no sandbox, a full disk — that text is the only clue.
+       */
+      const raw = lastErr?.message ?? 'unknown error';
+      const looksUninstalled = /Executable doesn't exist|playwright install|browserType\.launch/i.test(raw);
+
+      if (looksUninstalled) {
+        throw new Error(
+          'No browser is installed, so the carrier automation cannot start.\n\n'
+            + '  Fix it with:   npm run setup       (installs Chromium, ~500MB)\n'
+            + '  Or directly:   npm run browsers\n\n'
+            /**
+             * Both suggested commands are non-interactive. `npm run browsers` used to also
+             * run `patchright install chrome`, which installs Google Chrome system-wide and
+             * therefore prompts for a sudo password — so a command offered as the fix to a
+             * crash could itself hang with no explanation. Real Chrome is now
+             * `npm run browsers:chrome`, mentioned but not recommended here, because it is
+             * optional and this message is about getting unstuck.
+             */
+            + '`npm install` does not download browsers on purpose — it would add ~500MB to\n'
+            + 'every dependency install. If setup already ran, it likely failed partway:\n'
+            + 're-run it, and check disk space and network.\n\n'
+            + `Underlying driver error: ${raw}`
+        );
+      }
+
+      throw new Error(`Could not launch a browser: ${raw}`);
     })().finally(() => {
       this.#launching = null;
     });

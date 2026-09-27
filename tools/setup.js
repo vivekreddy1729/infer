@@ -111,7 +111,7 @@ step(3, 'Checking for real Google Chrome');
     note('every JS patch combined (src/browser/stealth.js).');
     note('');
     note('To install it (asks for your password, so it is not done automatically):');
-    note('    npx playwright install chrome');
+    note('    npm run browsers:chrome');
     note('');
     note('Not needed for the demo portal, and a GEICO login has been verified working');
     note('on bundled Chromium — so skip it for now if you prefer.');
